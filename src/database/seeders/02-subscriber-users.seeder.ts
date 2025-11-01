@@ -96,14 +96,15 @@ export async function seedSubscriberUsers(dataSource: DataSource) {
         await queryRunner.query(
           `
           INSERT INTO subscriber_users (
-            id, subscriber_id, name, email, role, password, is_active
-          ) VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+            id, subscriber_id, first_name, last_name, email, role, password_hash, is_active
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
           ON CONFLICT (subscriber_id, email) DO NOTHING
           `,
           [
             userIds[i],
             sub.id,
-            `User ${i + 1}`,
+            'User',
+            `${i + 1}`,
             email,
             role,
             'hashed-password',

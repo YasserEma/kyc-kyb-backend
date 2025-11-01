@@ -1,6 +1,7 @@
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { BaseRepository } from '../../common/repositories/base.repository';
 import { RiskAnalysisEntity } from '../entities/risk-analysis.entity';
 import { BaseFilter, PaginationOptions, PaginationResult } from '../../common/interfaces';
 import { QueryHelper } from '../../../utils/database/query.helper';
@@ -56,11 +57,13 @@ export interface RiskAnalysisFilter extends BaseFilter {
 }
 
 @Injectable()
-export class RiskAnalysisRepository {
+export class RiskAnalysisRepository extends BaseRepository<RiskAnalysisEntity> {
   constructor(
     @InjectRepository(RiskAnalysisEntity)
     private readonly repository: Repository<RiskAnalysisEntity>,
-  ) {}
+  ) {
+    super(repository);
+  }
 
   async findWithFilters(
     filters: RiskAnalysisFilter = {},

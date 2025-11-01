@@ -1,6 +1,7 @@
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { BaseRepository } from '../../common/repositories/base.repository';
 import { ListEntity } from '../entities/list.entity';
 import { BaseFilter, PaginationOptions, PaginationResult } from '../../common/interfaces';
 import { QueryHelper } from '../../../utils/database/query.helper';
@@ -59,11 +60,13 @@ export interface ListFilter extends BaseFilter {
 }
 
 @Injectable()
-export class ListRepository {
+export class ListRepository extends BaseRepository<ListEntity> {
   constructor(
     @InjectRepository(ListEntity)
     private readonly repository: Repository<ListEntity>,
-  ) {}
+  ) {
+    super(repository);
+  }
 
   async findWithFilters(
     filters: ListFilter = {},

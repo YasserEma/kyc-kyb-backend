@@ -42,13 +42,13 @@ export class SubscriberUserRepository extends BaseRepository<SubscriberUserEntit
    * Find user by email
    */
   async findByEmail(email: string): Promise<SubscriberUserEntity | null> {
+    if (!email) {
+      return null;
+    }
     return this.subscriberUserRepository.findOne({
       where: { 
-        email: email.toLowerCase(),
-        is_active: true,
-        deleted_at: IsNull()
+        email: email.toLowerCase()
       },
-      relations: ['subscriber']
     });
   }
 
@@ -85,14 +85,13 @@ export class SubscriberUserRepository extends BaseRepository<SubscriberUserEntit
    * Find user by reset token
    */
   async findByResetToken(token: string): Promise<SubscriberUserEntity | null> {
-    return this.subscriberUserRepository.findOne({
-      where: { 
-        reset_token: token,
-        reset_token_expires: { $gt: new Date() } as any,
-        is_active: true,
-        deleted_at: IsNull()
-      }
-    });
+    return this.subscriberUserRepository
+      .createQueryBuilder('user')
+      .where('user.reset_token = :token', { token })
+      .andWhere('user.reset_token_expires > :now', { now: new Date() })
+      .andWhere('user.is_active = :isActive', { isActive: true })
+      .andWhere('user.deleted_at IS NULL')
+      .getOne();
   }
 
   /**
@@ -102,11 +101,37 @@ export class SubscriberUserRepository extends BaseRepository<SubscriberUserEntit
     return this.subscriberUserRepository.findOne({
       where: { 
         email_verification_token: token,
-        email_verified_at: null,
+        email_verified_at: IsNull(),
         is_active: true,
         deleted_at: IsNull()
       }
     });
+  }
+
+  /**
+   * Find user by hashed refresh token
+   */
+  async findByHashedRefreshToken(hashedToken: string): Promise<SubscriberUserEntity | null> {
+    return this.subscriberUserRepository.findOne({
+      where: { 
+        hashed_refresh_token: hashedToken,
+        is_active: true,
+        deleted_at: IsNull()
+      }
+    });
+  }
+
+  /**
+   * Find all users with active reset tokens
+   */
+  async findUsersWithActiveResetTokens(): Promise<SubscriberUserEntity[]> {
+    return this.subscriberUserRepository
+      .createQueryBuilder('user')
+      .where('user.reset_token IS NOT NULL')
+      .andWhere('user.reset_token_expires > :now', { now: new Date() })
+      .andWhere('user.is_active = :isActive', { isActive: true })
+      .andWhere('user.deleted_at IS NULL')
+      .getMany();
   }
 
   /**
@@ -116,7 +141,7 @@ export class SubscriberUserRepository extends BaseRepository<SubscriberUserEntit
     const updateData: Partial<SubscriberUserEntity> = {
       last_login_at: new Date(),
       failed_login_attempts: 0,
-      locked_until: null,
+      locked_until: undefined,
       updated_at: new Date()
     };
 
@@ -155,7 +180,7 @@ export class SubscriberUserRepository extends BaseRepository<SubscriberUserEntit
   async verifyEmail(id: string): Promise<void> {
     await this.subscriberUserRepository.update(id, {
       email_verified_at: new Date(),
-      email_verification_token: null,
+      email_verification_token: undefined,
       updated_at: new Date()
     });
   }
@@ -166,8 +191,8 @@ export class SubscriberUserRepository extends BaseRepository<SubscriberUserEntit
   async updatePassword(id: string, passwordHash: string): Promise<void> {
     await this.subscriberUserRepository.update(id, {
       password_hash: passwordHash,
-      reset_token: null,
-      reset_token_expires: null,
+      reset_token: undefined,
+      reset_token_expires: undefined,
       updated_at: new Date()
     });
   }
@@ -185,8 +210,8 @@ export class SubscriberUserRepository extends BaseRepository<SubscriberUserEntit
       updateData.two_factor_secret = secret;
       updateData.two_factor_backup_codes = backupCodes || [];
     } else if (!enabled) {
-      updateData.two_factor_secret = null;
-      updateData.two_factor_backup_codes = null;
+      updateData.two_factor_secret = undefined;
+      updateData.two_factor_backup_codes = undefined;
     }
 
     await this.subscriberUserRepository.update(id, updateData);

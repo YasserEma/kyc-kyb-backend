@@ -1,4 +1,4 @@
-import { SelectQueryBuilder, Repository, MoreThanOrEqual, Not, IsNull } from 'typeorm';
+import { SelectQueryBuilder, Repository, MoreThanOrEqual, Not, IsNull, ObjectLiteral } from 'typeorm';
 import { PaginationOptions, PaginationResult, PaginationMeta } from '../../modules/common/interfaces/pagination.interface';
 import { BaseFilter, FilterOptions } from '../../modules/common/interfaces/filter.interface';
 import { DATABASE_CONSTANTS } from '../constants/database.constants';
@@ -7,15 +7,15 @@ export class QueryHelper {
   /**
    * Applies pagination to a query builder
    */
-  static applyPagination<T>(
+  static applyPagination<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
     options: PaginationOptions
   ): SelectQueryBuilder<T>;
-  static applyPagination<T>(
+  static applyPagination<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
     options: PaginationOptions
   ): Promise<PaginationResult<T>>;
-  static applyPagination<T>(
+  static applyPagination<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
     options: PaginationOptions
   ): SelectQueryBuilder<T> | Promise<PaginationResult<T>> {
@@ -33,7 +33,7 @@ export class QueryHelper {
   /**
    * Applies pagination and returns PaginationResult
    */
-  static async applyPaginationWithResult<T>(
+  static async applyPaginationWithResult<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
     options: PaginationOptions
   ): Promise<PaginationResult<T>> {
@@ -43,7 +43,7 @@ export class QueryHelper {
   /**
    * Builds pagination result from query builder
    */
-  static async buildPaginationResult<T>(
+  static async buildPaginationResult<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
     options: PaginationOptions
   ): Promise<PaginationResult<T>> {
@@ -85,7 +85,7 @@ export class QueryHelper {
   /**
    * Applies base filters (common to all entities)
    */
-  static applyBaseFilters<T>(
+  static applyBaseFilters<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
     filters: BaseFilter,
     alias: string = queryBuilder.alias
@@ -116,19 +116,19 @@ export class QueryHelper {
   /**
    * Applies sorting to query builder
    */
-  static applySorting<T>(
+  static applySorting<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
     options: FilterOptions,
     alias?: string,
     allowedSortFields?: string[]
   ): SelectQueryBuilder<T>;
-  static applySorting<T>(
+  static applySorting<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
     sortBy: string | undefined,
     sortOrder: 'ASC' | 'DESC' | undefined,
     allowedSortFields: string[]
   ): SelectQueryBuilder<T>;
-  static applySorting<T>(
+  static applySorting<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
     optionsOrSortBy: FilterOptions | string | undefined,
     aliasOrSortOrder?: string | 'ASC' | 'DESC',
@@ -170,7 +170,7 @@ export class QueryHelper {
   /**
    * Applies search to specified fields
    */
-  static applySearch<T>(
+  static applySearch<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
     searchTerm: string,
     searchFields: string[],
@@ -212,7 +212,7 @@ export class QueryHelper {
   /**
    * Applies soft delete filter (excludes deleted records)
    */
-  static applySoftDeleteFilter<T>(
+  static applySoftDeleteFilter<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
     alias: string = queryBuilder.alias
   ): SelectQueryBuilder<T> {
@@ -222,7 +222,7 @@ export class QueryHelper {
   /**
    * Builds IN clause with proper parameter handling for large arrays
    */
-  static applyInClause<T>(
+  static applyInClause<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
     field: string,
     values: any[],

@@ -66,13 +66,13 @@ export class TransactionHelper {
     maxRetries: number = 3,
     isolationLevel?: IsolationLevel
   ): Promise<T> {
-    let lastError: Error;
+    let lastError: Error | undefined;
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         return await this.withTransaction(dataSource, operation, isolationLevel);
       } catch (error) {
-        lastError = error;
+        lastError = error as Error;
         
         // Check if error is retryable (serialization failure, deadlock, etc.)
         if (this.isRetryableError(error) && attempt < maxRetries) {
@@ -86,7 +86,7 @@ export class TransactionHelper {
       }
     }
     
-    throw lastError;
+    throw lastError || new Error('Transaction failed after all retries');
   }
 
   /**

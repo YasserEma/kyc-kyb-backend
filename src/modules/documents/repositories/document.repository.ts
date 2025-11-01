@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DocumentEntity } from '../entities/document.entity';
 import { BaseFilter, PaginationOptions, PaginationResult } from '../../common/interfaces';
+import { BaseRepository } from '../../common/repositories/base.repository';
 import { QueryHelper } from '../../../utils/database/query.helper';
 
 export interface DocumentFilter extends BaseFilter {
@@ -45,11 +46,13 @@ export interface DocumentFilter extends BaseFilter {
 }
 
 @Injectable()
-export class DocumentRepository {
+export class DocumentRepository extends BaseRepository<DocumentEntity> {
   constructor(
     @InjectRepository(DocumentEntity)
     private readonly repository: Repository<DocumentEntity>,
-  ) {}
+  ) {
+    super(repository);
+  }
 
   async findWithFilters(
     filters: DocumentFilter = {},

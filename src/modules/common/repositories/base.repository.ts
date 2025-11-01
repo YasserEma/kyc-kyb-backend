@@ -33,6 +33,10 @@ export class BaseRepository<T extends BaseEntity> {
     return this.repository.findAndCount(options);
   }
 
+  create(entityLike: Partial<T>): T {
+    return this.repository.create(entityLike as any) as unknown as T;
+  }
+
   save(entity: T | T[]) {
     return this.repository.save(entity as any);
   }

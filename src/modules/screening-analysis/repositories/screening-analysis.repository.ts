@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ScreeningAnalysisEntity } from '../entities/screening-analysis.entity';
 import { BaseFilter, PaginationOptions, PaginationResult } from '../../common/interfaces';
 import { QueryHelper } from '../../../utils/database/query.helper';
+import { BaseRepository } from '../../common/repositories/base.repository';
 
 export interface ScreeningAnalysisFilter extends BaseFilter {
   entity_id?: string;
@@ -47,11 +48,13 @@ export interface ScreeningAnalysisFilter extends BaseFilter {
 }
 
 @Injectable()
-export class ScreeningAnalysisRepository {
+export class ScreeningAnalysisRepository extends BaseRepository<ScreeningAnalysisEntity> {
   constructor(
     @InjectRepository(ScreeningAnalysisEntity)
     private readonly repository: Repository<ScreeningAnalysisEntity>,
-  ) {}
+  ) {
+    super(repository);
+  }
 
   async findWithFilters(
     filters: ScreeningAnalysisFilter = {},
@@ -694,7 +697,7 @@ export class ScreeningAnalysisRepository {
     if (filters.tags) {
       const tags = Array.isArray(filters.tags) ? filters.tags : [filters.tags];
       const tagConditions = tags.map((_, index) => `screening_analysis.tags ILIKE :tag${index}`).join(' OR ');
-      const tagParams = tags.reduce((params, tag, index) => {
+      const tagParams = tags.reduce((params: Record<string, any>, tag, index) => {
         params[`tag${index}`] = `%${tag}%`;
         return params;
       }, {});
@@ -705,7 +708,7 @@ export class ScreeningAnalysisRepository {
     if (filters.data_sources) {
       const sources = Array.isArray(filters.data_sources) ? filters.data_sources : [filters.data_sources];
       const sourceConditions = sources.map((_, index) => `screening_analysis.data_sources ILIKE :source${index}`).join(' OR ');
-      const sourceParams = sources.reduce((params, source, index) => {
+      const sourceParams = sources.reduce((params: Record<string, any>, source, index) => {
         params[`source${index}`] = `%${source}%`;
         return params;
       }, {});
@@ -716,7 +719,7 @@ export class ScreeningAnalysisRepository {
     if (filters.search_terms) {
       const terms = Array.isArray(filters.search_terms) ? filters.search_terms : [filters.search_terms];
       const termConditions = terms.map((_, index) => `screening_analysis.search_terms ILIKE :term${index}`).join(' OR ');
-      const termParams = terms.reduce((params, term, index) => {
+      const termParams = terms.reduce((params: Record<string, any>, term, index) => {
         params[`term${index}`] = `%${term}%`;
         return params;
       }, {});

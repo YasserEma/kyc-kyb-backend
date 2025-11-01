@@ -22,6 +22,15 @@ export class SubscriberEntity extends BaseEntity {
   @Column({ type: 'text' })
   type: string;
 
+  @Column({ type: 'text', default: 'active' })
+  status: string;
+
+  @Column({ type: 'text', nullable: true })
+  company_name: string;
+
+  @Column({ type: 'text', nullable: true })
+  company_code: string;
+
   @Column({ type: 'text', nullable: true })
   contact_person_name: string;
 
@@ -39,6 +48,15 @@ export class SubscriberEntity extends BaseEntity {
 
   @Column({ type: 'text', nullable: true })
   jurisdiction: string;
+
+  @Column({ type: 'integer', nullable: true })
+  api_rate_limit: number;
+
+  @Column({ type: 'timestamp', nullable: true })
+  last_login_at: Date;
+
+  @Column({ type: 'text', nullable: true })
+  last_login_ip: string;
 
   // Relationships
   @OneToMany(() => SubscriberUserEntity, user => user.subscriber)

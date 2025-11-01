@@ -18,7 +18,7 @@ export class EncryptionHelper {
       // Derive key from secret using PBKDF2
       const key = crypto.pbkdf2Sync(secretKey, salt, 100000, 32, 'sha256');
       
-      const cipher = crypto.createCipherGCM(this.algorithm, key, iv);
+      const cipher = crypto.createCipheriv(this.algorithm, key, iv);
       
       let encrypted = cipher.update(text, 'utf8', 'hex');
       encrypted += cipher.final('hex');
@@ -35,7 +35,7 @@ export class EncryptionHelper {
       
       return combined.toString('base64');
     } catch (error) {
-      throw new Error(`Encryption failed: ${error.message}`);
+      throw new Error(`Encryption failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -58,7 +58,7 @@ export class EncryptionHelper {
       // Derive key from secret using PBKDF2
       const key = crypto.pbkdf2Sync(secretKey, salt, 100000, 32, 'sha256');
       
-      const decipher = crypto.createDecipherGCM(this.algorithm, key, iv);
+      const decipher = crypto.createDecipheriv(this.algorithm, key, iv);
       decipher.setAuthTag(authTag);
       
       let decrypted = decipher.update(encrypted, undefined, 'utf8');
@@ -66,7 +66,7 @@ export class EncryptionHelper {
       
       return decrypted;
     } catch (error) {
-      throw new Error(`Decryption failed: ${error.message}`);
+      throw new Error(`Decryption failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

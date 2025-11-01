@@ -66,6 +66,12 @@ export class SubscriberUserEntity extends BaseEntity {
   reset_token_expires: Date;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
+  hashed_refresh_token: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  google_id: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
   email_verification_token: string;
 
   @Column({ type: 'timestamp', nullable: true })
