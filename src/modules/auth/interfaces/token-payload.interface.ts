@@ -1,15 +1,15 @@
+import { UserRole } from 'src/modules/user/enums/user-role.enum';
+
 export interface TokenPayload {
-  sub: string; // user id
+  userId: number;
   email: string;
-  role: string;
-  subscriberId: string;
-  iat?: number;
-  exp?: number;
+  role: UserRole;
+  subscriberId: number;
 }
 
 export interface GoogleProfile {
+  googleId: string;
   email: string;
   firstName: string;
   lastName: string;
-  googleId: string;
 }
