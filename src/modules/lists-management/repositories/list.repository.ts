@@ -63,7 +63,7 @@ export interface ListFilter extends BaseFilter {
 export class ListRepository extends BaseRepository<ListEntity> {
   constructor(
     @InjectRepository(ListEntity)
-    private readonly repository: Repository<ListEntity>,
+    repository: Repository<ListEntity>,
   ) {
     super(repository);
   }
@@ -802,7 +802,7 @@ export class ListRepository extends BaseRepository<ListEntity> {
       const tagParams = tags.reduce((params, tag, index) => {
         params[`tag${index}`] = `%${tag}%`;
         return params;
-      }, {});
+      }, {} as Record<string, string>);
       
       queryBuilder.andWhere(`(${tagConditions})`, tagParams);
     }

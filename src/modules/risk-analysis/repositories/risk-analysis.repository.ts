@@ -60,7 +60,7 @@ export interface RiskAnalysisFilter extends BaseFilter {
 export class RiskAnalysisRepository extends BaseRepository<RiskAnalysisEntity> {
   constructor(
     @InjectRepository(RiskAnalysisEntity)
-    private readonly repository: Repository<RiskAnalysisEntity>,
+    repository: Repository<RiskAnalysisEntity>,
   ) {
     super(repository);
   }
@@ -434,7 +434,7 @@ export class RiskAnalysisRepository extends BaseRepository<RiskAnalysisEntity> {
       processing_time_seconds: processingTimeSeconds,
       updated_at: new Date(),
       last_updated_date: new Date(),
-    });
+    } as any);
   }
 
   async incrementRetryCount(id: string): Promise<void> {
@@ -443,7 +443,7 @@ export class RiskAnalysisRepository extends BaseRepository<RiskAnalysisEntity> {
       last_retry_date: new Date(),
       updated_at: new Date(),
       last_updated_date: new Date(),
-    });
+    } as any);
   }
 
   async updateNextReviewDate(
@@ -785,7 +785,7 @@ export class RiskAnalysisRepository extends BaseRepository<RiskAnalysisEntity> {
       const tagParams = tags.reduce((params, tag, index) => {
         params[`tag${index}`] = `%${tag}%`;
         return params;
-      }, {});
+      }, {} as Record<string, string>);
       
       queryBuilder.andWhere(`(${tagConditions})`, tagParams);
     }
@@ -796,7 +796,7 @@ export class RiskAnalysisRepository extends BaseRepository<RiskAnalysisEntity> {
       const sourceParams = sources.reduce((params, source, index) => {
         params[`source${index}`] = `%${source}%`;
         return params;
-      }, {});
+      }, {} as Record<string, string>);
       
       queryBuilder.andWhere(`(${sourceConditions})`, sourceParams);
     }

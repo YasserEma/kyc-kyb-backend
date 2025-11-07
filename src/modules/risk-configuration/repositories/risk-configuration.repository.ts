@@ -112,7 +112,7 @@ export interface RiskConfigurationFilter extends BaseFilter {
 export class RiskConfigurationRepository extends BaseRepository<RiskConfigurationEntity> {
   constructor(
     @InjectRepository(RiskConfigurationEntity)
-    private readonly repository: Repository<RiskConfigurationEntity>,
+    repository: Repository<RiskConfigurationEntity>,
   ) {
     super(repository);
   }

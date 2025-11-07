@@ -3,7 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder , IsNull} from 'typeorm';
 import { BaseRepository } from '../../common/repositories/base.repository';
 import { EntityEntity } from '../entities/entity.entity';
-import { PaginationOptions, PaginationResult } from '../../../utils/database/pagination.helper';
+import { PaginationOptions, PaginationResult } from '../../common/interfaces/pagination.interface';
+import { QueryHelper } from '../../../utils/database/query.helper';
 import { BaseFilter } from '../../common/interfaces/filter.interface';
 
 export interface EntityFilter extends BaseFilter {
@@ -17,6 +18,7 @@ export interface EntityFilter extends BaseFilter {
   updated_by?: string;
   name?: string;
   reference_number?: string;
+  search?: string;
 }
 
 @Injectable()
@@ -33,7 +35,7 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
     pagination: PaginationOptions = { page: 1, limit: 10 }
   ): Promise<PaginationResult<EntityEntity>> {
     const queryBuilder = this.createFilteredQuery(filters);
-    return this.paginate(queryBuilder, pagination);
+    return QueryHelper.buildPaginationResult(queryBuilder, pagination);
   }
 
   async findBySubscriberId(
@@ -110,7 +112,7 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
       '(entity.last_screened_at IS NULL OR entity.last_screened_at < :screeningThreshold)',
       { screeningThreshold: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // 30 days ago
     );
-    return this.paginate(queryBuilder, pagination);
+    return QueryHelper.buildPaginationResult(queryBuilder, pagination);
   }
 
   async findRequiringRiskAssessment(
@@ -122,7 +124,7 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
       '(entity.last_risk_assessed_at IS NULL OR entity.last_risk_assessed_at < :riskThreshold)',
       { riskThreshold: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } // 90 days ago
     );
-    return this.paginate(queryBuilder, pagination);
+    return QueryHelper.buildPaginationResult(queryBuilder, pagination);
   }
 
   async updateStatus(id: string, status: 'active' | 'inactive' | 'pending' | 'suspended' | 'archived'): Promise<void> {

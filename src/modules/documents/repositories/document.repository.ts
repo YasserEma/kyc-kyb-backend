@@ -49,7 +49,7 @@ export interface DocumentFilter extends BaseFilter {
 export class DocumentRepository extends BaseRepository<DocumentEntity> {
   constructor(
     @InjectRepository(DocumentEntity)
-    private readonly repository: Repository<DocumentEntity>,
+    repository: Repository<DocumentEntity>,
   ) {
     super(repository);
   }
@@ -181,7 +181,7 @@ export class DocumentRepository extends BaseRepository<DocumentEntity> {
       const tagParams = tags.reduce((params, tag, index) => {
         params[`tag${index}`] = `%${tag}%`;
         return params;
-      }, {});
+      }, {} as Record<string, string>);
       
       queryBuilder.andWhere(`(${tagConditions})`, tagParams);
     }
@@ -521,7 +521,7 @@ export class DocumentRepository extends BaseRepository<DocumentEntity> {
       const tagParams = tags.reduce((params, tag, index) => {
         params[`tag${index}`] = `%${tag}%`;
         return params;
-      }, {});
+      }, {} as Record<string, string>);
       
       queryBuilder.andWhere(`(${tagConditions})`, tagParams);
     }

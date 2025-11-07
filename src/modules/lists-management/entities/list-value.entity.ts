@@ -101,7 +101,13 @@ export class ListValueEntity {
   aliases: string[];
 
   @Column({ type: 'jsonb', nullable: true })
-  related_identifiers: Record<string, any>;
+  match_history: any[];
+
+  @Column({ type: 'jsonb', nullable: true })
+  review_history: any[];
+
+  @Column({ type: 'jsonb', nullable: true })
+  related_identifiers: string[];
 
   @Column({ type: 'jsonb', nullable: true })
   metadata: Record<string, any>;

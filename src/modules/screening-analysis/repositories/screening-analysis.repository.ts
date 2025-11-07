@@ -51,7 +51,7 @@ export interface ScreeningAnalysisFilter extends BaseFilter {
 export class ScreeningAnalysisRepository extends BaseRepository<ScreeningAnalysisEntity> {
   constructor(
     @InjectRepository(ScreeningAnalysisEntity)
-    private readonly repository: Repository<ScreeningAnalysisEntity>,
+    repository: Repository<ScreeningAnalysisEntity>,
   ) {
     super(repository);
   }
@@ -351,7 +351,7 @@ export class ScreeningAnalysisRepository extends BaseRepository<ScreeningAnalysi
       low_risk_matches: lowRiskMatches,
       updated_at: new Date(),
       last_updated_date: new Date(),
-    });
+    } as any);
   }
 
   async updateScores(
@@ -396,7 +396,7 @@ export class ScreeningAnalysisRepository extends BaseRepository<ScreeningAnalysi
       processing_time_seconds: processingTimeSeconds,
       updated_at: new Date(),
       last_updated_date: new Date(),
-    });
+    } as any);
   }
 
   async incrementRetryCount(id: string): Promise<void> {
@@ -405,7 +405,7 @@ export class ScreeningAnalysisRepository extends BaseRepository<ScreeningAnalysi
       last_retry_date: new Date(),
       updated_at: new Date(),
       last_updated_date: new Date(),
-    });
+    } as any);
   }
 
   async updateNextReviewDate(
@@ -434,7 +434,7 @@ export class ScreeningAnalysisRepository extends BaseRepository<ScreeningAnalysi
       cost_currency: currency,
       updated_at: new Date(),
       last_updated_date: new Date(),
-    });
+    } as any);
   }
 
   async getScreeningStatistics(filters: ScreeningAnalysisFilter = {}): Promise<{
@@ -697,10 +697,10 @@ export class ScreeningAnalysisRepository extends BaseRepository<ScreeningAnalysi
     if (filters.tags) {
       const tags = Array.isArray(filters.tags) ? filters.tags : [filters.tags];
       const tagConditions = tags.map((_, index) => `screening_analysis.tags ILIKE :tag${index}`).join(' OR ');
-      const tagParams = tags.reduce((params: Record<string, any>, tag, index) => {
+      const tagParams = tags.reduce((params, tag, index) => {
         params[`tag${index}`] = `%${tag}%`;
         return params;
-      }, {});
+      }, {} as Record<string, string>);
       
       queryBuilder.andWhere(`(${tagConditions})`, tagParams);
     }
@@ -708,10 +708,10 @@ export class ScreeningAnalysisRepository extends BaseRepository<ScreeningAnalysi
     if (filters.data_sources) {
       const sources = Array.isArray(filters.data_sources) ? filters.data_sources : [filters.data_sources];
       const sourceConditions = sources.map((_, index) => `screening_analysis.data_sources ILIKE :source${index}`).join(' OR ');
-      const sourceParams = sources.reduce((params: Record<string, any>, source, index) => {
+      const sourceParams = sources.reduce((params, source, index) => {
         params[`source${index}`] = `%${source}%`;
         return params;
-      }, {});
+      }, {} as Record<string, string>);
       
       queryBuilder.andWhere(`(${sourceConditions})`, sourceParams);
     }

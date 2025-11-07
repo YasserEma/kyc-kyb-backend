@@ -244,21 +244,22 @@ export class EntityCustomFieldRepository extends BaseRepository<EntityCustomFiel
 
     if (typeof value === 'object' && value !== null) {
       updateData.field_value_json = value;
-      updateData.field_value = null;
+      updateData.field_value = undefined;
     } else {
-      updateData.field_value = value?.toString() || null;
+      updateData.field_value = value != null ? value.toString() : undefined;
       updateData.field_value_json = null;
     }
 
     const result = await this.update(field.id, updateData);
-    return result.affected > 0;
+    const affected = result.affected ?? 0;
+    return affected > 0;
   }
 
   async updateDisplayOrder(
     entityId: string,
     fieldOrders: { fieldName: string; order: number }[]
   ): Promise<boolean> {
-    const queryRunner = this.manager.connection.createQueryRunner();
+    const queryRunner = this.repository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 

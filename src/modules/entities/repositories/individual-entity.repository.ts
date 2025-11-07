@@ -3,7 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder , IsNull} from 'typeorm';
 import { BaseRepository } from '../../common/repositories/base.repository';
 import { IndividualEntity } from '../entities/individual-entity.entity';
-import { PaginationOptions, PaginationResult } from '../../../utils/database/pagination.helper';
+import { PaginationOptions, PaginationResult } from '../../common/interfaces/pagination.interface';
+import { QueryHelper } from '../../../utils/database/query.helper';
 import { BaseFilter } from '../../common/interfaces/filter.interface';
 
 export interface IndividualEntityFilter extends BaseFilter {
@@ -19,6 +20,7 @@ export interface IndividualEntityFilter extends BaseFilter {
   date_of_birth_to?: Date;
   id_expiry_from?: Date;
   id_expiry_to?: Date;
+  search?: string;
 }
 
 @Injectable()
@@ -35,7 +37,7 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
     pagination: PaginationOptions = { page: 1, limit: 10 }
   ): Promise<PaginationResult<IndividualEntity>> {
     const queryBuilder = this.createFilteredQuery(filters);
-    return this.paginate(queryBuilder, pagination);
+    return QueryHelper.buildPaginationResult(queryBuilder, pagination);
   }
 
   async findByEntityId(entityId: string): Promise<IndividualEntity | null> {
@@ -117,7 +119,7 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
       { expiryThreshold }
     );
     
-    return this.paginate(queryBuilder, pagination);
+    return QueryHelper.buildPaginationResult(queryBuilder, pagination);
   }
 
   async findByAgeRange(
@@ -136,7 +138,7 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
       { minBirthDate, maxBirthDate }
     );
     
-    return this.paginate(queryBuilder, pagination);
+    return QueryHelper.buildPaginationResult(queryBuilder, pagination);
   }
 
   async updatePEPStatus(entityId: string, isPep: boolean, pepDetails?: string): Promise<void> {
@@ -217,16 +219,16 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
     // Calculate age groups
     const currentDate = new Date();
     const ageGroups = await Promise.all([
-      this.findByAgeRange(0, 24, {}, { page: 1, limit: 1 }).then(result => result.total),
-      this.findByAgeRange(25, 40, {}, { page: 1, limit: 1 }).then(result => result.total),
-      this.findByAgeRange(41, 60, {}, { page: 1, limit: 1 }).then(result => result.total),
-      this.findByAgeRange(61, 120, {}, { page: 1, limit: 1 }).then(result => result.total)
+      this.findByAgeRange(0, 24, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items),
+      this.findByAgeRange(25, 40, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items),
+      this.findByAgeRange(41, 60, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items),
+      this.findByAgeRange(61, 120, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items)
     ]);
 
     // Calculate expiring IDs
     const [expiringIds30Days, expiringIds90Days] = await Promise.all([
-      this.findWithExpiringIds(30, {}, { page: 1, limit: 1 }).then(result => result.total),
-      this.findWithExpiringIds(90, {}, { page: 1, limit: 1 }).then(result => result.total)
+      this.findWithExpiringIds(30, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items),
+      this.findWithExpiringIds(90, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items)
     ]);
 
     return {

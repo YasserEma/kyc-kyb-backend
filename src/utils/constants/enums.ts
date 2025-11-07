@@ -104,6 +104,8 @@ export enum OrganizationRelationshipType {
   BRANCH = 'BRANCH',
   SISTER_COMPANY = 'SISTER_COMPANY',
   PARTNER = 'PARTNER',
+  OWNS = 'OWNS',
+  OWNED_BY = 'OWNED_BY',
 }
 
 export enum OwnershipType {
