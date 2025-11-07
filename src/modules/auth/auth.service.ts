@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { IsNull } from 'typeorm';
+import { IsNull, QueryFailedError } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { SubscriberRepository } from '../subscribers/repositories/subscriber.repository';
@@ -44,9 +44,22 @@ export class AuthService {
   async registerSubscriber(dto: RegisterSubscriberDto): Promise<RegisterResponseDto> {
     try {
       // Check if admin email already exists
-      const existingUser = await this.subscriberUserRepository.findByEmail(dto.adminEmail);
+      const normalizedEmail = dto.adminEmail.toLowerCase();
+      const existingUser = await this.subscriberUserRepository.findByEmail(normalizedEmail);
       if (existingUser) {
         throw new ConflictException('A user with this email already exists');
+      }
+
+      // Check for existing subscriber by company name (username) or email
+      const [existingSubscriberByUsername, existingSubscriberByEmail] = await Promise.all([
+        this.subscriberRepository.findByUsername(dto.companyName),
+        this.subscriberRepository.findByEmail(normalizedEmail),
+      ]);
+      if (existingSubscriberByUsername) {
+        throw new ConflictException('A subscriber with this company name already exists');
+      }
+      if (existingSubscriberByEmail) {
+        throw new ConflictException('A subscriber with this email already exists');
       }
 
       // Hash the admin password
@@ -60,7 +73,7 @@ export class AuthService {
       // Create subscriber entity
       const subscriber = this.subscriberRepository.create({
         username: dto.companyName, // Map companyName to username
-        email: dto.adminEmail, // Use admin email as subscriber email
+        email: normalizedEmail, // Use admin email as subscriber email (normalized)
         password: hashedPassword, // Temporary password, will be managed by users
         type: dto.companyType,
         company_name: dto.companyName,
@@ -75,7 +88,7 @@ export class AuthService {
         subscriber_id: savedSubscriber.id,
         first_name: firstName,
         last_name: lastName,
-        email: dto.adminEmail,
+        email: normalizedEmail,
         password_hash: hashedPassword,
         phone: dto.adminPhoneNumber,
         role: 'admin',
@@ -103,7 +116,24 @@ export class AuthService {
       if (error instanceof ConflictException) {
         throw error;
       }
-      this.logger.error('Error during subscriber registration', error);
+      // Handle unique constraint violations gracefully (TypeORM / Postgres)
+      if (error instanceof QueryFailedError) {
+        const code: string | undefined = (error.driverError as any)?.code;
+        const constraint: string | undefined = (error.driverError as any)?.constraint;
+        if (code === '23505') {
+          if (constraint === 'subscribers_username_key') {
+            throw new ConflictException('Subscriber company name already exists');
+          }
+          if (constraint === 'subscribers_email_key') {
+            throw new ConflictException('Subscriber email already exists');
+          }
+          if (constraint === 'subscriber_users_email_key') {
+            throw new ConflictException('User email already exists');
+          }
+          throw new ConflictException('Duplicate value violates a unique constraint');
+        }
+      }
+      this.logger.error('Error during subscriber registration', (error as Error)?.stack);
       throw new InternalServerErrorException('Failed to register subscriber');
     }
   }
