@@ -253,15 +253,15 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
     }
 
     if (filters.status) {
-      queryBuilder.andWhere('entity.status = :status', { status: filters.status });
+      queryBuilder.andWhere('UPPER(entity.status) = UPPER(:status)', { status: filters.status });
     }
 
     if (filters.risk_level) {
-      queryBuilder.andWhere('entity.risk_level = :riskLevel', { riskLevel: filters.risk_level });
+      queryBuilder.andWhere('UPPER(entity.risk_level) = UPPER(:riskLevel)', { riskLevel: filters.risk_level });
     }
 
     if (filters.screening_status) {
-      queryBuilder.andWhere('entity.screening_status = :screeningStatus', { screeningStatus: filters.screening_status });
+      queryBuilder.andWhere('UPPER(entity.screening_status) = UPPER(:screeningStatus)', { screeningStatus: filters.screening_status });
     }
 
     if (filters.onboarding_completed !== undefined) {

@@ -102,9 +102,9 @@ lib-cov
 coverage
 *.lcov
 
-# Logs
-logs
-*.log
+# # Logs
+# logs
+# *.log
 
 # Database
 *.sqlite
