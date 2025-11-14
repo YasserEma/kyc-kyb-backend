@@ -115,7 +115,7 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
     expiryThreshold.setDate(expiryThreshold.getDate() + daysAhead);
     
     queryBuilder.andWhere(
-      'individual.id_expiry_date IS NOT NULL AND individual.id_expiry_date <= :expiryThreshold',
+      'idoc.expiry_date IS NOT NULL AND idoc.expiry_date <= :expiryThreshold',
       { expiryThreshold }
     );
     
@@ -163,20 +163,8 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
     await this.individualEntityRepository.update({ entity_id: entityId }, updateData);
   }
 
-  async updateIdInformation(
-    entityId: string,
-    idType: 'passport' | 'national_id' | 'drivers_license' | 'other',
-    nationalId: string,
-    idExpiryDate?: Date
-  ): Promise<void> {
-    const updateData: Partial<IndividualEntity> = {
-      id_type: idType,
-      national_id: nationalId,
-      id_expiry_date: idExpiryDate,
-      updated_at: new Date()
-    };
-    await this.individualEntityRepository.update({ entity_id: entityId }, updateData);
-  }
+  // Legacy identity fields have been moved to IndividualIdentityDocumentEntity.
+  // Any updates to identity information should be performed via the identity documents module/service.
 
   async getIndividualStatistics(): Promise<{
     total: number;
@@ -210,10 +198,38 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
       this.individualEntityRepository.count({ where: { ...baseWhere, gender: 'prefer_not_to_say' } }),
       this.individualEntityRepository.count({ where: { ...baseWhere, is_pep: true } }),
       this.individualEntityRepository.count({ where: { ...baseWhere, has_criminal_record: true } }),
-      this.individualEntityRepository.count({ where: { ...baseWhere, id_type: 'passport' } }),
-      this.individualEntityRepository.count({ where: { ...baseWhere, id_type: 'national_id' } }),
-      this.individualEntityRepository.count({ where: { ...baseWhere, id_type: 'drivers_license' } }),
-      this.individualEntityRepository.count({ where: { ...baseWhere, id_type: 'other' } })
+      this.individualEntityRepository
+        .createQueryBuilder('individual')
+        .leftJoin('individual.identity_documents', 'idoc')
+        .where('individual.is_active = true AND individual.deleted_at IS NULL')
+        .andWhere('idoc.id_type = :type', { type: 'passport' })
+        .select('COUNT(DISTINCT individual.id)', 'count')
+        .getRawOne()
+        .then(r => Number(r?.count ?? 0)),
+      this.individualEntityRepository
+        .createQueryBuilder('individual')
+        .leftJoin('individual.identity_documents', 'idoc')
+        .where('individual.is_active = true AND individual.deleted_at IS NULL')
+        .andWhere('idoc.id_type = :type', { type: 'national_id' })
+        .select('COUNT(DISTINCT individual.id)', 'count')
+        .getRawOne()
+        .then(r => Number(r?.count ?? 0)),
+      this.individualEntityRepository
+        .createQueryBuilder('individual')
+        .leftJoin('individual.identity_documents', 'idoc')
+        .where('individual.is_active = true AND individual.deleted_at IS NULL')
+        .andWhere('idoc.id_type = :type', { type: 'drivers_license' })
+        .select('COUNT(DISTINCT individual.id)', 'count')
+        .getRawOne()
+        .then(r => Number(r?.count ?? 0)),
+      this.individualEntityRepository
+        .createQueryBuilder('individual')
+        .leftJoin('individual.identity_documents', 'idoc')
+        .where('individual.is_active = true AND individual.deleted_at IS NULL')
+        .andWhere('idoc.id_type = :type', { type: 'other' })
+        .select('COUNT(DISTINCT individual.id)', 'count')
+        .getRawOne()
+        .then(r => Number(r?.count ?? 0)),
     ]);
 
     // Calculate age groups
@@ -263,6 +279,8 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
       .createQueryBuilder('individual')
       .leftJoinAndSelect('individual.entity', 'entity')
       .leftJoinAndSelect('entity.subscriber', 'subscriber')
+      .leftJoin('individual.identity_documents', 'idoc')
+      .distinct(true)
       .where('individual.is_active = :isActive', { isActive: true })
       .andWhere('individual.deleted_at IS NULL');
 
@@ -289,7 +307,7 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
     }
 
     if (filters.id_type) {
-      queryBuilder.andWhere('individual.id_type = :idType', { idType: filters.id_type });
+      queryBuilder.andWhere('idoc.id_type = :idType', { idType: filters.id_type });
     }
 
     if (filters.is_pep !== undefined) {
@@ -315,15 +333,11 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
     }
 
     if (filters.id_expiry_from) {
-      queryBuilder.andWhere('individual.id_expiry_date >= :idExpiryFrom', { 
-        idExpiryFrom: filters.id_expiry_from 
-      });
+      queryBuilder.andWhere('idoc.expiry_date >= :idExpiryFrom', { idExpiryFrom: filters.id_expiry_from });
     }
 
     if (filters.id_expiry_to) {
-      queryBuilder.andWhere('individual.id_expiry_date <= :idExpiryTo', { 
-        idExpiryTo: filters.id_expiry_to 
-      });
+      queryBuilder.andWhere('idoc.expiry_date <= :idExpiryTo', { idExpiryTo: filters.id_expiry_to });
     }
 
     if (filters.search) {

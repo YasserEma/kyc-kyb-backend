@@ -25,6 +25,11 @@ import { EntityCustomFieldRepository } from '../entity-custom-fields/repositorie
 import { ScreeningAnalysisRepository } from '../screening-analysis/repositories/screening-analysis.repository';
 import { RiskAnalysisRepository } from '../risk-analysis/repositories/risk-analysis.repository';
 import { DocumentRepository } from '../documents/repositories/document.repository';
+import { IndividualIdentityDocumentsModule } from '../individual-identity-documents/individual-identity-documents.module';
+import { IndividualRelationshipsModule } from '../individual-entity-relationships/individual-entity-relationships.module';
+import { OrganizationEntityAssociationEntity } from '../organization-entity-associations/entities/organization-entity-association.entity';
+import { OrganizationEntityAssociationRepository } from '../organization-entity-associations/repositories/organization-entity-association.repository';
+import { DocumentsService } from '../documents/documents.service';
 
 import { AuthModule } from '../auth/auth.module';
 
@@ -39,7 +44,10 @@ import { AuthModule } from '../auth/auth.module';
       ScreeningAnalysisEntity,
       RiskAnalysisEntity,
       DocumentEntity,
+      OrganizationEntityAssociationEntity,
     ]),
+    IndividualIdentityDocumentsModule,
+    IndividualRelationshipsModule,
     forwardRef(() => AuthModule),
   ],
   controllers: [EntitiesController],
@@ -53,6 +61,8 @@ import { AuthModule } from '../auth/auth.module';
     ScreeningAnalysisRepository,
     RiskAnalysisRepository,
     DocumentRepository,
+    OrganizationEntityAssociationRepository,
+    DocumentsService,
   ],
   exports: [EntityRepository, IndividualEntityRepository, OrganizationEntityRepository, TypeOrmModule],
 })

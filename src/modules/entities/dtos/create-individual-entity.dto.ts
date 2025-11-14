@@ -1,5 +1,29 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsDateString, IsOptional, IsString, IsUUID, IsArray } from 'class-validator';
+import { IsBoolean, IsDateString, IsOptional, IsString, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class IdentityDocumentDto {
+  @ApiProperty({ description: 'ID type', example: 'PASSPORT' })
+  @IsString()
+  id_type!: string;
+
+  @ApiProperty({ description: 'Nationality code (ISO alpha-2)', example: 'US' })
+  @IsString()
+  nationality!: string;
+
+  @ApiProperty({ description: 'ID number' })
+  @IsString()
+  id_number!: string;
+
+  @ApiPropertyOptional({ description: 'Expiry date (ISO date)' })
+  @IsOptional()
+  @IsDateString()
+  expiry_date?: string;
+
+  @ApiProperty({ description: 'Document file payload (base64 or multipart key)' })
+  @IsString()
+  file!: string;
+}
 
 export class CreateIndividualEntityDto {
   @ApiProperty({ description: 'Entity display name (full name)', example: 'John Doe' })
@@ -34,20 +58,17 @@ export class CreateIndividualEntityDto {
   @IsString()
   occupation?: string;
 
-  @ApiPropertyOptional({ description: 'National ID number' })
+  @ApiPropertyOptional({ description: 'Identity documents', type: [IdentityDocumentDto] })
   @IsOptional()
-  @IsString()
-  national_id?: string;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => IdentityDocumentDto)
+  identity_documents?: IdentityDocumentDto[];
 
-  @ApiPropertyOptional({ description: 'ID type (passport, national_id, etc.)' })
+  @ApiPropertyOptional({ description: 'Custom fields', type: 'array' })
   @IsOptional()
-  @IsString()
-  id_type?: string;
-
-  @ApiPropertyOptional({ description: 'ID expiry date (ISO date)' })
-  @IsOptional()
-  @IsDateString()
-  id_expiry_date?: string;
+  @IsArray()
+  custom_fields?: CustomFieldDto[];
 
   @ApiPropertyOptional({ description: 'Source of income' })
   @IsOptional()
@@ -71,4 +92,57 @@ export class CreateIndividualEntityDto {
   @IsOptional()
   @IsString()
   criminal_record_details?: string;
+}
+
+export class CustomFieldDto {
+  @ApiProperty({ description: 'Field name' })
+  @IsString()
+  field_name!: string;
+
+  @ApiPropertyOptional({ description: 'Field type', example: 'text' })
+  @IsOptional()
+  @IsString()
+  field_type?: string;
+
+  @ApiPropertyOptional({ description: 'Field value as string' })
+  @IsOptional()
+  @IsString()
+  field_value?: string;
+
+  @ApiPropertyOptional({ description: 'Field value as JSON' })
+  @IsOptional()
+  field_value_json?: any;
+
+  @ApiPropertyOptional({ description: 'Field group name' })
+  @IsOptional()
+  @IsString()
+  field_group?: string;
+
+  @ApiPropertyOptional({ description: 'Is required' })
+  @IsOptional()
+  is_required?: boolean;
+
+  @ApiPropertyOptional({ description: 'Is searchable' })
+  @IsOptional()
+  is_searchable?: boolean;
+
+  @ApiPropertyOptional({ description: 'Is visible' })
+  @IsOptional()
+  is_visible?: boolean;
+
+  @ApiPropertyOptional({ description: 'Is editable' })
+  @IsOptional()
+  is_editable?: boolean;
+
+  @ApiPropertyOptional({ description: 'Is encrypted' })
+  @IsOptional()
+  is_encrypted?: boolean;
+
+  @ApiPropertyOptional({ description: 'Is PII' })
+  @IsOptional()
+  is_pii?: boolean;
+
+  @ApiPropertyOptional({ description: 'Display order' })
+  @IsOptional()
+  display_order?: number;
 }

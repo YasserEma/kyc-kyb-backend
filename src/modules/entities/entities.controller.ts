@@ -41,6 +41,17 @@ export class EntitiesController {
     return this.entitiesService.getEntityDetails(payload.subscriberId, entityId);
   }
 
+  @Get(':entity_id/individual')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'manager', 'analyst', 'viewer')
+  @ApiOperation({ summary: 'Get individual profile by entity ID' })
+  @ApiParam({ name: 'entity_id', required: true })
+  @ApiResponse({ status: 200, description: 'Individual profile returned' })
+  async getIndividualProfile(@Req() req: Request, @Param('entity_id') entityId: string) {
+    const payload = req.user as any;
+    return this.entitiesService.getIndividualProfileByEntityId(payload.subscriberId, entityId);
+  }
+
   @Post('individual')
   @UseGuards(RolesGuard)
   @Roles('admin', 'manager')
@@ -48,7 +59,7 @@ export class EntitiesController {
   @ApiResponse({ status: 201, description: 'Individual entity created' })
   async createIndividualEntity(@Req() req: Request, @Body() dto: CreateIndividualEntityDto) {
     const payload = req.user as any;
-    return this.entitiesService.createIndividualEntity(payload.subscriberId, payload.userId, dto);
+    return this.entitiesService.createIndividualEntity(payload.subscriberId, payload.sub, dto);
   }
 
   @Post('organization')
@@ -58,7 +69,7 @@ export class EntitiesController {
   @ApiResponse({ status: 201, description: 'Organization entity created' })
   async createOrganizationEntity(@Req() req: Request, @Body() dto: CreateOrganizationEntityDto) {
     const payload = req.user as any;
-    return this.entitiesService.createOrganizationEntity(payload.subscriberId, payload.userId, dto);
+    return this.entitiesService.createOrganizationEntity(payload.subscriberId, payload.sub, dto);
   }
 
   @Put(':entity_id')
@@ -73,7 +84,7 @@ export class EntitiesController {
     @Body() dto: UpdateEntityDto,
   ) {
     const payload = req.user as any;
-    return this.entitiesService.updateEntity(payload.subscriberId, entityId, payload.userId, dto);
+    return this.entitiesService.updateEntity(payload.subscriberId, entityId, payload.sub, dto);
   }
 
   @Patch(':entity_id/status')
@@ -88,7 +99,7 @@ export class EntitiesController {
     @Body() dto: UpdateEntityStatusDto,
   ) {
     const payload = req.user as any;
-    return this.entitiesService.updateEntityStatus(payload.subscriberId, entityId, payload.userId, dto);
+    return this.entitiesService.updateEntityStatus(payload.subscriberId, entityId, payload.sub, dto);
   }
 
   @Post('bulk')
@@ -98,7 +109,7 @@ export class EntitiesController {
   @ApiResponse({ status: 200, description: 'Bulk action performed' })
   async bulkAction(@Req() req: Request, @Body() dto: BulkActionDto) {
     const payload = req.user as any;
-    return this.entitiesService.bulkAction(payload.subscriberId, payload.userId, dto);
+    return this.entitiesService.bulkAction(payload.subscriberId, payload.sub, dto);
   }
 
   @Get(':entity_id/history')

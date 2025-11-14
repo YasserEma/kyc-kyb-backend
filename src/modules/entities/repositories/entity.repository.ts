@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder , IsNull} from 'typeorm';
 import { BaseRepository } from '../../common/repositories/base.repository';
 import { EntityEntity } from '../entities/entity.entity';
+import { IndividualEntity } from '../entities/individual-entity.entity';
+import { OrganizationEntity } from '../entities/organization-entity.entity';
 import { PaginationOptions, PaginationResult } from '../../common/interfaces/pagination.interface';
 import { QueryHelper } from '../../../utils/database/query.helper';
 import { BaseFilter } from '../../common/interfaces/filter.interface';
@@ -53,7 +55,8 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
         is_active: true,
         deleted_at: IsNull()
       },
-      relations: ['subscriber', 'individualEntity', 'organizationEntity']
+      // Only load existing relations; inverse relations to individual/organization are not defined
+      relations: ['subscriber']
     });
   }
 
@@ -239,8 +242,9 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
     const queryBuilder = this.entityRepository
       .createQueryBuilder('entity')
       .leftJoinAndSelect('entity.subscriber', 'subscriber')
-      .leftJoinAndSelect('entity.individualEntity', 'individualEntity')
-      .leftJoinAndSelect('entity.organizationEntity', 'organizationEntity')
+      // Join related tables by foreign key instead of non-existent inverse relations
+      .leftJoin(IndividualEntity, 'individualEntity', 'individualEntity.entity_id = entity.id')
+      .leftJoin(OrganizationEntity, 'organizationEntity', 'organizationEntity.entity_id = entity.id')
       .where('entity.is_active = :isActive', { isActive: true })
       .andWhere('entity.deleted_at IS NULL');
 

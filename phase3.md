@@ -1,461 +1,242 @@
-Generate Complete 'Entities' Module (Phase 3) Based on API Specification
-Objective: Generate the complete, production-ready EntitiesModule (src/modules/entities). This module is the core of the KYC application, responsible for the comprehensive CRUD (Create, Read, Update, Delete) management of "Entities" (both Individuals and Organizations).
+Full E2E Test Plan for KYC Application (Phase 3 - Entities & Relationships)
+Objective: Execute a comprehensive end-to-end (E2E) test plan for the NestJS KYC application, focusing on the newly implemented "Phase 3" features. This plan will cover:
 
-This implementation must be based strictly on the 9-endpoint API specification provided and must integrate seamlessly with the existing project structure, including all provided entities, repositories, and modules.
+Environment Setup: Running the app, database, and fixing critical seeder data.
 
-Core Architectural & Security Requirements:
+Individual API Tests: Validating each endpoint in the Entities module and the new IndividualRelationships module in isolation.
 
-Thick Service, Thin Controller: All business logic must reside in EntitiesService. The EntitiesController is only for request/response mapping, DTO validation, Swagger documentation, and extracting user context.
+E2E Scenarios: Testing complex user journeys that chain these APIs, with a heavy focus on the new "Multi-ID" flow, "Custom Fields," "Related Parties," and critical security (Multi-Tenancy & RBAC).
 
-Authentication: All 9 endpoints in EntitiesController must be protected by the existing JwtAuthGuard.
+Phase 1: Environment Setup & Data Correction
+Install Dependencies: Run npm install to ensure all packages are present.
 
-Authorization (RBAC): Use the existing RolesGuard and @Roles decorator for all endpoints. Apply the specific permissions as defined in the API specification (e.g., view_entity, create_entity, update_entity_status, view_entity_history, export_entity).
+Configure Environment (.env):
 
-Multi-Tenant Scoping (Critical): This is the most important security requirement. All EntitiesService methods must accept the subscriberId from the authenticated user's TokenPayload. Every single database query (find, update, delete) must be scoped to this subscriberId. An admin from Company A must never be able to see, edit, or delete entities from Company B.
+Create a .env file in the root directory with all required variables (Database credentials, JWT secrets, Nodemailer credentials, Google OAuth keys).
 
-Database Transaction Integrity: The create and update endpoints (2.3, 2.4, 2.5) are complex and modify multiple tables. All logic for these endpoints must be wrapped in a DataSource transaction (this.dataSource.transaction(async manager => { ... })) to ensure data integrity.
+Start Database: Run docker compose up -d to start the PostgreSQL container.
 
-Audit Trail (History): All operations that modify entity data (Create, Update, Status Change, Delete) must create a new record in the entity_history table using the EntityHistoryRepository.
+CRITICAL FIX - Correct Seeder Data:
 
-Service Orchestration: The EntitiesService will act as an orchestrator. It must inject and call other services (e.g., ScreeningService, RiskService, DocumentService, OrganizationEntityAssociationRepository). Create and inject placeholder/stub services for ScreeningService, RiskService, and DocumentService if they do not exist, so their methods can be called (e.g., this.screeningService.triggerScreening(...)).
+Before seeding, open src/database/seeders/02-subscriber-users.seeder.ts.
 
-Swagger Documentation: All 9 endpoints, all DTOs (including nested DTOs), and all API responses (success and error) must be fully documented with @nestjs/swagger decorators, matching the provided API specification.
+The file contains the plaintext password "hashed-password". This will cause all seeded user logins to fail.
 
-Part 1: New File Generation Plan
-Please generate the following new files:
+Action: Generate a valid bcrypt hash for a known password (e.g., "Password123!").
 
-src/modules/entities/entities.module.ts
+Replace all instances of "hashed-password" in that file with the new, valid bcrypt hash string.
 
-src/modules/entities/entities.controller.ts
+Run Migrations: Execute npm run migration:run (or the equivalent command) to run all migrations, including the new ones for individual-identity-documents and the modifications to individual_entities.
 
-src/modules/entities/entities.service.ts
+Seed Database: Run npm run seed to populate the database with the corrected test data.
 
-src/modules/entities/dto/list-entities-query.dto.ts (for API 2.1)
+Run Application: Run npm run start:dev. Verify the application starts successfully.
 
-src/modules/entities/dto/create-dtos.common.ts (for common nested DTOs)
+Phase 2: Individual API Test Cases (Isolation)
+Prerequisite: Use Postman or a similar tool.
 
-src/modules/entities/dto/create-individual-entity.dto.ts (for API 2.3)
+Login as Admin (Bank): POST /api/v1/auth/login with user1@bank_one.test and "Password123!". Store the returned access_token as ADMIN_TOKEN_BANK.
 
-src/modules/entities/dto/create-organization-entity.dto.ts (for API 2.4)
+Login as Admin (Supermarket): POST /api/v1/auth/login with user1@supermarket.test. Store ADMIN_TOKEN_SUPERMARKET.
 
-src/modules/entities/dto/update-entity.dto.ts (for API 2.5)
+Login as Analyst (Bank): POST /api/v1/auth/login with user2@bank_one.test. Store ANALYST_TOKEN_BANK.
 
-src/modules/entities/dto/update-entity-status.dto.ts (for API 2.6)
+Test Suite 1: EntitiesModule (/entities)
 
-src/modules/entities/dto/bulk-action.dto.ts (for API 2.7)
+API 2.1: GET /api/v1/entities (List Entities)
 
-src/modules/entities/dto/list-entity-history-query.dto.ts (for API 2.8)
+Test 2.1.1 (Success): Use ADMIN_TOKEN_BANK. GET /api/v1/entities. Expect 200 OK and a paginated list of entities seeded for bank_one.
 
-src/modules/entities/dto/export-entities.dto.ts (for API 2.9)
+Test 2.1.2 (Filtering): Use ADMIN_TOKEN_BANK. GET /api/v1/entities?status=ACTIVE&entity_type=INDIVIDUAL. Expect 200 OK and a filtered list.
 
-(Create stub modules/services for Screening, Risk, and Documents if they don't exist to satisfy service injection).
+Test 2.1.3 (Security): Use ANALYST_TOKEN_BANK. GET /api/v1/entities. Expect 200 OK (RBAC: view_entity permission).
 
-Part 2: DTO Implementation Details
-Generate all DTOs in src/modules/entities/dto/. They must include class-validator decorators and @ApiProperty decorators matching the API spec.
+API 2.3: POST /api/v1/entities/individuals (Create Individual)
 
-list-entities-query.dto.ts (API 2.1):
+Test 2.3.1 (Success - Full Refactor): Use ADMIN_TOKEN_BANK. Send a POST request with a body matching create-individual-entity.dto.ts, specifically testing the new features:
 
-Implement all query parameters specified: page, limit, entity_type (Enum), status (Enum), risk_level (Enum), screening_status (Enum), search, created_from (Date), created_to (Date), sort_by, sort_order. Use @IsOptional(), @IsEnum(), @IsDateString(), etc.
+JSON
 
-create-dtos.common.ts:
-
-CustomFieldDto: Create a DTO for the custom_fields array. It must match the API spec: field_key (string), field_value (string), field_type (enum: TEXT, NUMBER, etc.), field_category (string).
-
-EntityDocumentDto: Create a DTO for the documents array. It must match the API spec: document_type (string), file (string, for base64/multipart stub), expiry_date (Date, optional).
-
-create-individual-entity.dto.ts (API 2.3):
-
-This DTO must be nested. Create IndividualBasicInfoDto and SelfDeclarationsDto.
-
-IndividualBasicInfoDto: Must contain all fields from basic_information in the API spec, matching IndividualEntity. Crucially, nationality must be string[] (@IsArray()) to support multi-nationality, as requested.
-
-SelfDeclarationsDto: Must contain is_pep (boolean), pep_details (string, optional), etc.
-
-CreateIndividualEntityDto: Must contain onboard (boolean), basic_information (@ValidateNested()), self_declarations (@ValidateNested()), documents (array of EntityDocumentDto, optional), custom_fields (array of CustomFieldDto, optional), trigger_screening (boolean, optional), trigger_risk_analysis (boolean, optional).
-
-create-organization-entity.dto.ts (API 2.4):
-
-This DTO must be nested. Create OrganizationBasicInfoDto and RelatedPartyDto.
-
-OrganizationBasicInfoDto: Must contain all fields from basic_information in the API spec, matching OrganizationEntity. name is required.
-
-RelatedPartyDto: Must contain all fields for related_parties in the API spec, matching OrganizationEntityAssociationEntity. It must support either individual_entity_id (string, optional, for existing) or individual_data (nested DTO, optional, for new).
-
-CreateOrganizationEntityDto: Must contain onboard (boolean), basic_information (@ValidateNested()), documents (optional), related_parties (optional), custom_fields (optional), trigger_screening (optional), trigger_risk_analysis (optional).
-
-update-entity.dto.ts (API 2.5):
-
-Must contain basic_information (object, optional), custom_fields (array, optional), trigger_screening (boolean, optional), trigger_risk_analysis (boolean, optional).
-
-update-entity-status.dto.ts (API 2.6):
-
-Must contain status (string, required, Enum) and reason (string, optional).
-
-bulk-action.dto.ts (API 2.7):
-
-Must contain entity_ids (array of UUIDs), action (string, Enum), parameters (object, optional).
-
-list-entity-history-query.dto.ts (API 2.8):
-
-Must contain page, limit, change_type (Enum, optional), date_from (Date, optional), date_to (Date, optional).
-
-export-entities.dto.ts (API 2.9):
-
-Must contain filters (nested ListEntitiesQueryDto, optional), format (string, Enum: 'CSV' | 'XLSX'), columns (array of strings, optional).
-
-Part 3: Module Implementation (entities.module.ts)
-File: src/modules/entities/entities.module.ts
-
-imports:
-
-TypeOrmModule.forFeature([...]): Import EntityEntity, IndividualEntity, OrganizationEntity, EntityHistoryEntity, EntityCustomFieldEntity, OrganizationEntityAssociationEntity, ScreeningAnalysisEntity, RiskAnalysisEntity, DocumentEntity.
-
-forwardRef(() => AuthModule) (for Guards and TokenPayload).
-
-LogsModule.
-
-(Import your stub/real modules: ScreeningModule, RiskModule, DocumentsModule).
-
-controllers: [EntitiesController]
-
-providers:
-
-EntitiesService
-
-EntityRepository
-
-IndividualEntityRepository
-
-OrganizationEntityRepository
-
-EntityHistoryRepository
-
-EntityCustomFieldRepository
-
-OrganizationEntityAssociationRepository
-
-ScreeningAnalysisRepository
-
-RiskAnalysisRepository
-
-DocumentRepository
-
-(Provide stub/real services: ScreeningService, RiskService, DocumentService).
-
-exports: [EntitiesService, EntityRepository, IndividualEntityRepository, OrganizationEntityRepository]
-
-Part 4: Service Implementation (entities.service.ts)
-Generate the EntitiesService with all business logic.
-
-Inject: DataSource, all repositories listed in the module, and all stub/real services (ScreeningService, RiskService, DocumentService).
-
-Implement listEntities (API 2.1):
-
-Method: async listEntities(subscriberId: string, query: ListEntitiesQueryDto)
-
-Logic: Use entityRepository.findWithFilters. Critically, enforce scoping by creating a filter object: const filters = { ...query, subscriber_id: subscriberId }.
-
-Implement getEntityDetails (API 2.2):
-
-Method: async getEntityDetails(entityId: string, subscriberId: string)
-
-Logic:
-
-Fetch the base EntityEntity scoped by id AND subscriber_id. Throw NotFoundException if not found.
-
-Based on entity_type, fetch the IndividualEntity or OrganizationEntity profile.
-
-Use Promise.all to fetch all related data in parallel: custom_fields, relationships (from associationRepository), screening_history (latest 10), risk_history (latest 10), documents.
-
-Assemble the complex response DTO as specified in the API. Mask sensitive fields like tax_identification_number.
-
-Implement createIndividualEntity (API 2.3):
-
-Method: async createIndividualEntity(dto: CreateIndividualEntityDto, subscriberId: string, userId: string)
-
-Logic:
-
-Use this.dataSource.transaction(async manager => { ... }).
-
-Inside transaction:
-
-Check for duplicate reference_number (if provided by user).
-
-Create and save the base EntityEntity (type 'INDIVIDUAL', subscriber_id, created_by: userId).
-
-Create and save the IndividualEntity (link entity_id, save all basic_information and self_declarations). Ensure nationality string[] is saved correctly to the jsonb column.
-
-Loop dto.custom_fields and create/save EntityCustomFieldEntity records.
-
-Call documentService.processUploads(..., manager) (stub).
-
-Create and save an EntityHistoryEntity ("created").
-
-Outside transaction:
-
-If dto.trigger_screening, await this.screeningService.triggerScreening(...).
-
-If dto.trigger_risk_analysis, await this.riskService.triggerAnalysis(...).
-
-Return the response DTO as specified.
-
-Implement createOrganizationEntity (API 2.4):
-
-Method: async createOrganizationEntity(dto: CreateOrganizationEntityDto, subscriberId: string, userId: string)
-
-Logic:
-
-Use this.dataSource.transaction(async manager => { ... }).
-
-Inside transaction:
-
-Create/save EntityEntity (type 'ORGANIZATION').
-
-Create/save OrganizationEntity.
-
-Loop dto.custom_fields and save.
-
-Loop dto.related_parties: This is complex.
-
-If party.individual_entity_id exists, use it.
-
-If party.individual_data exists, call a helper function (private) async createRelatedPartyIndividual(...) within the same transaction to create the new Individual + Base Entity, then get its ID.
-
-Create and save the OrganizationEntityAssociationEntity linking the org and the individual.
-
-Call documentService.processUploads(..., manager) (stub).
-
-Create EntityHistoryEntity ("created").
-
-Outside transaction: Trigger screening/risk for the org and all newly created related parties.
-
-Return the complex response DTO.
-
-Implement updateEntity (API 2.5):
-
-Method: async updateEntity(entityId: string, dto: UpdateEntityDto, subscriberId: string, userId: string)
-
-Logic:
-
-Use this.dataSource.transaction(async manager => { ... }).
-
-Find the entity scoped by id AND subscriber_id. Throw NotFoundException.
-
-Get a deep copy of oldValues for history.
-
-Update the EntityEntity and/or IndividualEntity/OrganizationEntity tables based on dto.basic_information.
-
-Handle updates to dto.custom_fields (find existing, update, or create new).
-
-Create EntityHistoryEntity ("updated"), logging old_values and new_values.
-
-Outside transaction: Trigger re-screening/re-assessment if flags are true.
-
-Return the response DTO.
-
-Implement updateEntityStatus (API 2.6):
-
-Method: async updateEntityStatus(entityId: string, dto: UpdateEntityStatusDto, subscriberId: string, userId: string)
-
-Logic:
-
-Find entity (scoped).
-
-Save old status for history.
-
-Update entity.status = dto.status. Save.
-
-Log to EntityHistoryRepository (change_type: 'status_changed').
-
-Return the specified response.
-
-Implement bulkAction (API 2.7):
-
-Method: async bulkAction(dto: BulkActionDto, subscriberId: string, userId: string)
-
-Logic:
-
-Fetch all entities: ...find({ where: { id: In(dto.entity_ids), subscriber_id: subscriberId } }).
-
-Loop through the found entities.
-
-Perform the dto.action (e.g., call updateEntityStatus or softDelete).
-
-Collect succeeded and failed results (e.g., if an ID from the DTO was not found in the subscriber's account).
-
-Return the specified response.
-
-Implement getEntityHistory (API 2.8):
-
-Method: async getEntityHistory(entityId: string, subscriberId: string, query: ListEntityHistoryQueryDto)
-
-Logic:
-
-Check Access: await this.entityRepository.findOne({ where: { id: entityId, subscriber_id: subscriberId } }). Throw NotFoundException if null.
-
-Call entityHistoryRepository.findWithFilters(...), passing in entity_id and query params.
-
-Implement exportEntities (API 2.9):
-
-Method: async exportEntities(dto: ExportEntitiesDto, subscriberId: string, userId: string)
-
-Logic: This must be an asynchronous job.
-
-Do not generate the file here.
-
-(Optional: Create an ExportJob entity/table to track this).
-
-Log that the job was started.
-
-Return the 202 Accepted response immediately, as specified: { success: true, data: { export_id: ..., status: 'PROCESSING', ... } }.
-
-Part 5: Controller Implementation (entities.controller.ts)
-Generate the EntitiesController class.
-
-Apply class-level decorators: @ApiTags('Entity Management'), @ApiBearerAuth(), @UseGuards(JwtAuthGuard).
-
-Implement all 9 endpoints from the API spec (2.1 to 2.9).
-
-Each method must:
-
-Have the correct HTTP verb (@Get, @Post, @Put, @Patch, @Delete) and path (:entity_id, individuals, bulk-action, etc.).
-
-Have the correct @UseGuards(RolesGuard) and @Roles('...') decorator matching the "Permissions" in the API spec.
-
-Have a full set of @ApiOperation, @ApiResponse (for success and errors 401, 403, 404, 400), and @ApiParam/@ApiQuery/@ApiBody decorators.
-
-Extract subscriberId and sub (userId) from the @Req() req object: const { subscriberId, sub } = req.user as TokenPayload;.
-
-Call the corresponding entitiesService method, passing all required parameters (e.g., subscriberId, userId, DTOs, params).
-
-Example Stub for Controller:
-
-TypeScript
-
-@ApiTags('Entity Management')
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
-@Controller('entities')
-export class EntitiesController {
-  constructor(private readonly entitiesService: EntitiesService) {}
-
-  // 2.1 List Entities
-  @Get()
-  @UseGuards(RolesGuard)
-  @Roles('view_entity')
-  @ApiOperation({ summary: 'Retrieves a paginated list of all entities' })
-  @ApiResponse({ status: 200, description: 'Success' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  async listEntities(@Req() req: Request, @Query() query: ListEntitiesQueryDto) {
-    const { subscriberId } = req.user as TokenPayload;
-    return this.entitiesService.listEntities(subscriberId, query);
-  }
-
-  // 2.2 Get Entity Details
-  @Get(':entity_id')
-  @UseGuards(RolesGuard)
-  @Roles('view_entity')
-  @ApiOperation({ summary: 'Retrieves complete details of a specific entity' })
-  @ApiParam({ name: 'entity_id', type: 'string' })
-  @ApiResponse({ status: 200, description: 'Success' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  @ApiResponse({ status: 404, description: 'Entity not found' })
-  async getEntityDetails(@Req() req: Request, @Param('entity_id') entityId: string) {
-    const { subscriberId } = req.user as TokenPayload;
-    return this.entitiesService.getEntityDetails(entityId, subscriberId);
-  }
-
-  // 2.3 Create Individual Entity
-  @Post('individuals')
-  @UseGuards(RolesGuard)
-  @Roles('create_entity')
-  @ApiOperation({ summary: 'Creates a new individual entity (KYC)' })
-  @ApiResponse({ status: 201, description: 'Created successfully' })
-  @ApiResponse({ status: 400, description: 'Validation error' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  async createIndividual(@Req() req: Request, @Body() dto: CreateIndividualEntityDto) {
-    const { subscriberId, sub } = req.user as TokenPayload;
-    return this.entitiesService.createIndividualEntity(dto, subscriberId, sub);
-  }
-
-  // 2.4 Create Organization Entity
-  @Post('organizations')
-  @UseGuards(RolesGuard)
-  @Roles('create_entity')
-  @ApiOperation({ summary: 'Creates a new organization entity (KYB)' })
-  @ApiResponse({ status: 201, description: 'Created successfully' })
-  @ApiResponse({ status: 400, description: 'Validation error' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  async createOrganization(@Req() req: Request, @Body() dto: CreateOrganizationEntityDto) {
-    const { subscriberId, sub } = req.user as TokenPayload;
-    return this.entitiesService.createOrganizationEntity(dto, subscriberId, sub);
-  }
-
-  // 2.5 Update Entity
-  @Put(':entity_id')
-  @UseGuards(RolesGuard)
-  @Roles('update_entity')
-  @ApiOperation({ summary: "Updates an existing entity's information" })
-  @ApiParam({ name: 'entity_id', type: 'string' })
-  @ApiResponse({ status: 200, description: 'Success' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  @ApiResponse({ status: 404, description: 'Entity not found' })
-  async updateEntity(@Req() req: Request, @Param('entity_id') entityId: string, @Body() dto: UpdateEntityDto) {
-    const { subscriberId, sub } = req.user as TokenPayload;
-    return this.entitiesService.updateEntity(entityId, dto, subscriberId, sub);
-  }
-
-  // 2.6 Update Entity Status
-  @Patch(':entity_id/status')
-  @UseGuards(RolesGuard)
-  @Roles('update_entity_status')
-  @ApiOperation({ summary: "Updates the status of an entity" })
-  @ApiParam({ name: 'entity_id', type: 'string' })
-  @ApiResponse({ status: 200, description: 'Success' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  @ApiResponse({ status: 404, description: 'Entity not found' })
-  async updateEntityStatus(@Req() req: Request, @Param('entity_id') entityId: string, @Body() dto: UpdateEntityStatusDto) {
-    const { subscriberId, sub } = req.user as TokenPayload;
-    return this.entitiesService.updateEntityStatus(entityId, dto, subscriberId, sub);
-  }
-
-  // 2.7 Bulk Entity Actions
-  @Post('bulk-action')
-  @UseGuards(RolesGuard)
-  @Roles('admin') // Using 'admin' as a placeholder, adjust if a specific permission exists
-  @ApiOperation({ summary: 'Performs bulk operations on multiple entities' })
-  @ApiResponse({ status: 200, description: 'Success (partial or complete)' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  async bulkAction(@Req() req: Request, @Body() dto: BulkActionDto) {
-    const { subscriberId, sub } = req.user as TokenPayload;
-    return this.entitiesService.bulkAction(dto, subscriberId, sub);
-  }
-
-  // 2.8 Get Entity History
-  @Get(':entity_id/history')
-  @UseGuards(RolesGuard)
-  @Roles('view_entity_history')
-  @ApiOperation({ summary: 'Retrieves complete change history for an entity' })
-  @ApiParam({ name: 'entity_id', type: 'string' })
-  @ApiResponse({ status: 200, description: 'Success' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  @ApiResponse({ status: 404, description: 'Entity not found' })
-  async getEntityHistory(@Req() req: Request, @Param('entity_id') entityId: string, @Query() query: ListEntityHistoryQueryDto) {
-    const { subscriberId } = req.user as TokenPayload;
-    return this.entitiesService.getEntityHistory(entityId, subscriberId, query);
-  }
-
-  // 2.9 Export Entities
-  @Post('export')
-  @UseGuards(RolesGuard)
-  @Roles('export_entity')
-  @ApiOperation({ summary: 'Exports entities based on filters' })
-  @ApiResponse({ status: 202, description: 'Export initiated' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  async exportEntities(@Req() req: Request, @Body() dto: ExportEntitiesDto) {
-    const { subscriberId, sub } = req.user as TokenPayload;
-    return this.entitiesService.exportEntities(dto, subscriberId, sub);
-  }
+{
+  "onboard": true,
+  "basic_information": { "name": "John Smith (Multi-ID Test)" /*...other fields*/ },
+  "self_declarations": { "is_pep": false, "has_criminal_record": false },
+  "identity_documents": [
+    {
+      "nationality": "EG",
+      "id_type": "NATIONAL_ID",
+      "id_number": "30001010101010",
+      "file": "base64_string_of_eg_id.pdf"
+    },
+    {
+      "nationality": "US",
+      "id_type": "PASSPORT",
+      "id_number": "E12345678",
+      "expiry_date": "2030-01-01",
+      "file": "base64_string_of_us_passport.jpg"
+    }
+  ],
+  "custom_fields": [
+    {
+      "field_key": "customer_source",
+      "field_value": "Walk-in",
+      "field_type": "TEXT",
+      "field_category": "Acquisition"
+    }
+  ],
+  "trigger_screening": true,
+  "trigger_risk_analysis": true
 }
+Expect: 201 Created. Store the new entity_id as NEW_INDIVIDUAL_ID.
+
+Verify: Check the database to confirm:
+
+One record in entities.
+
+One record in individual_entities (with NO flat nationality or national_id fields).
+
+Two records in individual_identity_documents linked to this individual.
+
+One record in entity_custom_fields.
+
+One record in entity_history with change_type: 'created'.
+
+API 2.4: POST /api/v1/entities/organizations (Create Organization)
+
+Test 2.4.1 (Success - Full Logic): Use ADMIN_TOKEN_BANK. Send a POST request testing related_parties and custom_fields:
+
+JSON
+
+{
+  "onboard": true,
+  "basic_information": { "name": "Org (Full Test)", "country_of_incorporation": "US", "date_of_incorporation": "2020-01-01", "registered_address": "123 Main St" },
+  "related_parties": [
+    {
+      "individual_data": { "name": "Test UBO", "nationality": ["US"] },
+      "relationship_type": "UBO",
+      "ownership_percentage": 50
+    }
+  ],
+  "custom_fields": [
+    { "field_key": "business_line", "field_value": "Payments", "field_type": "TEXT", "field_category": "Business" }
+  ]
+}
+Expect: 201 Created. Store the new entity_id as NEW_ORG_ID.
+
+Verify: Check the database to confirm:
+
+One record in entities (NEW_ORG_ID).
+
+One new IndividualEntity ("Test UBO") was also created.
+
+One record in organization_entity_associations linking NEW_ORG_ID to the new "Test UBO".
+
+One record in entity_custom_fields.
+
+API 2.2: GET /api/v1/entities/{entity_id} (Get Details)
+
+Test 2.2.1 (Success - Individual): Use ADMIN_TOKEN_BANK. GET /api/v1/entities/{NEW_INDIVIDUAL_ID}.
+
+Expect: 200 OK. Verify the response body:
+
+profile does not contain flat nationality or national_id.
+
+The root of the response (or a new field) contains the identity_documents array (with 2 items).
+
+The custom_fields array contains 1 item ("customer_source").
+
+Test 2.2.2 (Success - Organization): Use ADMIN_TOKEN_BANK. GET /api/v1/entities/{NEW_ORG_ID}.
+
+Expect: 200 OK. Verify the relationships array contains the "Test UBO".
+
+API 2.8: GET /api/v1/entities/{entity_id}/history (Get History)
+
+Test 2.8.1 (Success): Use ADMIN_TOKEN_BANK. GET /api/v1/entities/{NEW_INDIVIDUAL_ID}/history.
+
+Expect: 200 OK with at least one "created" record.
+
+API 2.5: PUT /api/v1/entities/{entity_id} (Update Entity)
+
+Test 2.5.1 (Success): Use ADMIN_TOKEN_BANK. PUT /api/v1/entities/{NEW_INDIVIDUAL_ID} with a body to update occupation and add a new custom_field.
+
+Expect: 200 OK.
+
+Verify: Check GET /api/v1/entities/{NEW_INDIVIDUAL_ID}/history. Expect a new "updated" record in entity_history.
+
+API 2.6: PATCH /api/v1/entities/{entity_id}/status (Update Status)
+
+Test 2.6.1 (Success): Use ADMIN_TOKEN_BANK. PATCH /api/v1/entities/{NEW_INDIVIDUAL_ID}/status with body {"status": "BLOCKED"}.
+
+Expect: 200 OK. Verify status is "BLOCKED".
+
+API 2.7: POST /api/v1/entities/bulk-action (Bulk Action)
+
+Test 2.7.1 (Success - Delete): Use ADMIN_TOKEN_BANK. POST /api/v1/entities/bulk-action with body {"entity_ids": ["{NEW_INDIVIDUAL_ID}"], "action": "DELETE"}.
+
+Expect: 200 OK.
+
+Verify: GET /api/v1/entities/{NEW_INDIVIDUAL_ID}. Expect 404 Not Found (due to soft delete).
+
+API 2.9: POST /api/v1/entities/export (Export Entities)
+
+Test 2.9.1 (Success): Use ADMIN_TOKEN_BANK. POST /api/v1/entities/export with filters.
+
+Expect: 202 Accepted response with export_id and status: 'PROCESSING'.
+
+Test Suite 2: IndividualEntityRelationshipsModule (/entities/:id/relationships)
+
+Prerequisite: Create two new individuals: INDIVIDUAL_A_ID and INDIVIDUAL_B_ID.
+
+Test 2.10.1 (Success - Create Relation): Use ADMIN_TOKEN_BANK. POST /api/v1/entities/{INDIVIDUAL_A_ID}/relationships with body:
+
+JSON
+
+{
+  "related_individual_id": "{INDIVIDUAL_B_ID_FROM_ENTITY_TABLE}",
+  "relationship_type": "PARTNER",
+  "effective_from": "2020-01-01"
+}
+Expect: 201 Created.
+
+Verify: Check the individual_entity_relationships table for the new record.
+
+Test 2.10.2 (Success - Get Relations): Use ADMIN_TOKEN_BANK. GET /api/v1/entities/{INDIVIDUAL_A_ID}/relationships.
+
+Expect: 200 OK with an array containing the "PARTNER" relationship to INDIVIDUAL_B_ID.
+
+Test 2.10.3 (Success - Delete Relation): Get the relationship_id from the test above. DELETE /api/v1/individual-relationships/{relationship_id}.
+
+Expect: 204 No Content or 200 OK.
+
+Verify: GET /api/v1/entities/{INDIVIDUAL_A_ID}/relationships. Expect an empty array [].
+
+Phase 3: E2E Scenarios (Security & Flow)
+Scenario 3.1: Multi-Tenancy Security (CRITICAL TEST)
+
+Action: Use ADMIN_TOKEN_BANK (from Bank 1).
+
+Action: Get the entity_id of a seeded entity belonging to Supermarket 1 (e.g., 550e8400-e29b-41d4-a716-446655440021 from 08-entities.seeder.ts). Let's call it SUPERMARKET_ENTITY_ID.
+
+Test: GET /api/v1/entities/{SUPERMARKET_ENTITY_ID}.
+
+Expected: 404 Not Found. (The service entities.service.ts must scope the findOne query by subscriberId, making this entity "not found" for Bank 1's admin).
+
+Test: PUT /api/v1/entities/{SUPERMARKET_ENTITY_ID} (with any valid body).
+
+Expected: 404 Not Found.
+
+Test: POST /api/v1/entities/{SUPERMARKET_ENTITY_ID}/relationships (with any valid body).
+
+Expected: 404 Not Found (or 403 Forbidden).
+
+Scenario 3.2: Role-Based Access Control (RBAC)
+
+Action: Use ANALYST_TOKEN_BANK.
+
+Test (Success): GET /api/v1/entities. Expected: 200 OK (Permission: view_entity).
+
+Test (Success): POST /api/v1/entities/individuals (with valid body). Expected: 201 Created (Permission: create_entity).
+
+Test (Failure): POST /api/v1/entities/bulk-action (with action: "DELETE"). Expected: 403 Forbidden (Permission: admin only).
+
+Test (Failure): PATCH /api/v1/entities/{NEW_INDIVIDUAL_ID}/status. Expected: 403 Forbidden (Permission: update_entity_status).

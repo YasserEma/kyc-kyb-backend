@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { randomUUID } from 'crypto';
 
@@ -10,6 +11,10 @@ import { EntityCustomFieldRepository } from '../../entity-custom-fields/reposito
 import { ScreeningAnalysisRepository } from '../../screening-analysis/repositories/screening-analysis.repository';
 import { RiskAnalysisRepository } from '../../risk-analysis/repositories/risk-analysis.repository';
 import { DocumentRepository } from '../../documents/repositories/document.repository';
+import { DocumentsService } from '../../documents/documents.service';
+import { IndividualIdentityDocumentRepository } from '../../individual-identity-documents/individual-identity-document.repository';
+import { OrganizationEntityAssociationRepository } from '../../organization-entity-associations/repositories/organization-entity-association.repository';
+import { EncryptionHelper } from '../../../utils/database/encryption.helper';
 
 import { ListEntitiesQueryDto } from '../dtos/list-entities.dto';
 import { CreateIndividualEntityDto } from '../dtos/create-individual-entity.dto';
@@ -31,6 +36,10 @@ export class EntitiesService {
     private readonly screeningAnalysisRepository: ScreeningAnalysisRepository,
     private readonly riskAnalysisRepository: RiskAnalysisRepository,
     private readonly documentRepository: DocumentRepository,
+    private readonly identityDocumentRepository: IndividualIdentityDocumentRepository,
+    private readonly organizationEntityAssociationRepository: OrganizationEntityAssociationRepository,
+    private readonly documentsService: DocumentsService,
+    private readonly configService: ConfigService,
   ) {}
 
   async listEntities(subscriberId: string, query: ListEntitiesQueryDto) {
@@ -80,8 +89,17 @@ export class EntitiesService {
 
   async createIndividualEntity(subscriberId: string, userId: string, dto: CreateIndividualEntityDto) {
     const referenceNumber = `REF-${randomUUID()}`;
+    // Debug context for troubleshooting runtime errors
+    // Note: left intentionally verbose to aid investigation; remove once stable
+    console.log('[EntitiesService] createIndividualEntity called', {
+      subscriberId,
+      userId,
+      name: dto?.name,
+      dob: dto?.date_of_birth,
+    });
 
-    return this.dataSource.transaction(async manager => {
+    try {
+      return this.dataSource.transaction(async manager => {
       // Create base entity
       const baseEntity = this.entityRepository.create({
         subscriber_id: subscriberId,
@@ -91,7 +109,26 @@ export class EntitiesService {
         status: 'PENDING',
         created_by: userId,
       });
-      const savedEntity = await manager.getRepository((this.entityRepository as any).repository.target).save(baseEntity);
+      // Explicitly set relation too, in case column assignment is lost
+      (baseEntity as any).creator = { id: userId } as any;
+      console.log('[EntitiesService] baseEntity pre-save snapshot', {
+        id: (baseEntity as any)?.id,
+        subscriber_id: (baseEntity as any)?.subscriber_id,
+        created_by: (baseEntity as any)?.created_by,
+        has_creator_relation: !!(baseEntity as any)?.creator,
+      });
+      const savedEntity = await manager
+        .getRepository((this.entityRepository as any).repository.target)
+        .save(baseEntity)
+        .catch((err) => {
+          console.error('[EntitiesService] Failed to save base entity', {
+            message: err?.message,
+            code: err?.code,
+            detail: err?.detail,
+            column: err?.column,
+          });
+          throw err;
+        });
 
       // Create individual entity record
       const individualRecord = this.individualEntityRepository.create({
@@ -102,33 +139,139 @@ export class EntitiesService {
         gender: dto.gender,
         address: dto.address,
         occupation: dto.occupation,
-        national_id: dto.national_id,
-        id_type: dto.id_type,
-        id_expiry_date: dto.id_expiry_date ? new Date(dto.id_expiry_date) : undefined,
         source_of_income: dto.source_of_income,
         is_pep: dto.is_pep ?? false,
         has_criminal_record: dto.has_criminal_record ?? false,
         pep_details: dto.pep_details,
         criminal_record_details: dto.criminal_record_details,
       });
-      await manager.getRepository((this.individualEntityRepository as any).repository.target).save(individualRecord);
+      await manager
+        .getRepository((this.individualEntityRepository as any).repository.target)
+        .save(individualRecord)
+        .catch((err) => {
+          console.error('[EntitiesService] Failed to save individual record', {
+            message: err?.message,
+            code: err?.code,
+            detail: err?.detail,
+            column: err?.column,
+          });
+          throw err;
+        });
 
-      // History log
-      await manager.getRepository((this.entityHistoryRepository as any).repository.target).save(
-        this.entityHistoryRepository.create({
-          entity_id: savedEntity.id,
-          changed_by: userId,
-          change_type: 'created',
-          change_description: 'Individual entity created',
-          new_values: { entity: savedEntity, individual: individualRecord },
-        })
+      // Create identity documents if provided (Phase 3 fields)
+      if (Array.isArray(dto.identity_documents) && dto.identity_documents.length) {
+        const secret = this.configService.get<string>('ENCRYPTION_SECRET');
+        for (const d of dto.identity_documents) {
+          const idNumberEncrypted = d.id_number && secret
+            ? EncryptionHelper.encrypt(d.id_number, secret)
+            : d.id_number;
+
+          let createdDocId: string | undefined;
+          if (d.file) {
+            const createdDoc = await this.documentsService.createDocumentFromFile(
+              d.file,
+              subscriberId,
+              userId,
+              manager,
+              {
+                entity_id: savedEntity.id,
+                document_type: 'identity',
+                expiry_date: d.expiry_date ? new Date(d.expiry_date) : undefined,
+                document_number: d.id_number,
+                document_name: `${d.id_type} document`,
+                mime_type: 'application/octet-stream',
+              }
+            );
+            createdDocId = createdDoc?.id;
+          }
+
+          const identityDoc = this.identityDocumentRepository.create({
+            individual_id: individualRecord.id as any,
+            id_type: d.id_type,
+            nationality: d.nationality,
+            id_number: idNumberEncrypted,
+            is_encrypted: !!(d.id_number && secret),
+            expiry_date: d.expiry_date ? new Date(d.expiry_date) : undefined,
+            document_id: createdDocId as any,
+            created_by: userId,
+          });
+          await manager.getRepository((this.identityDocumentRepository as any).repository.target).save(identityDoc);
+        }
+      }
+
+      // Save custom fields if provided
+      if (Array.isArray(dto.custom_fields) && dto.custom_fields.length) {
+        for (const cf of dto.custom_fields) {
+          const fieldRecord = this.entityCustomFieldRepository.create({
+            entity_id: savedEntity.id,
+            field_name: cf.field_name,
+            field_type: (cf.field_type ?? 'text') as any,
+            field_value: cf.field_value,
+            field_value_json: cf.field_value_json,
+            field_group: cf.field_group,
+            is_required: cf.is_required ?? false,
+            is_searchable: cf.is_searchable ?? false,
+            is_visible: cf.is_visible ?? true,
+            is_editable: cf.is_editable ?? true,
+            is_encrypted: cf.is_encrypted ?? false,
+            is_pii: cf.is_pii ?? false,
+            display_order: cf.display_order ?? 0,
+            created_by: userId,
+          } as any);
+          await manager.getRepository((this.entityCustomFieldRepository as any).repository.target).save(fieldRecord);
+        }
+      }
+
+      // History log (use raw SQL to match existing table columns)
+      // The entity_history migration defines: entity_id, changed_by, change_type, changes, change_description, ip_address, user_agent
+      // Avoid ORM column mismatches by inserting only supported fields.
+      const historyChanges = {
+        event: 'entity_created',
+        entity: { id: savedEntity.id, type: 'individual', name: savedEntity.name },
+        individual: { id: individualRecord.id, date_of_birth: individualRecord.date_of_birth },
+      };
+      await manager.query(
+        `INSERT INTO entity_history (entity_id, changed_by, change_type, changes, change_description)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          savedEntity.id,
+          userId,
+          'created',
+          JSON.stringify(historyChanges),
+          'Individual entity created',
+        ],
       );
 
       // Placeholder orchestration: create pending screening and risk entries if needed
       // Skipping actual creation to avoid schema assumptions; repositories expose filters for later queries.
 
-      return savedEntity;
-    });
+        return savedEntity;
+      });
+    } catch (err: any) {
+      console.error('[EntitiesService] createIndividualEntity errored', {
+        message: err?.message,
+        code: err?.code,
+        detail: err?.detail,
+        column: err?.column,
+        stack: err?.stack,
+      });
+      throw new InternalServerErrorException({
+        message: 'Failed to create individual entity',
+        code: err?.code,
+        detail: err?.detail,
+        column: err?.column,
+      });
+    }
+  }
+
+  async getIndividualProfileByEntityId(subscriberId: string, entityId: string) {
+    // Ensure the base entity belongs to the subscriber for multi-tenant safety
+    const entity = await this.entityRepository.findOne({ where: { id: entityId, subscriber_id: subscriberId, is_active: true } });
+    if (!entity) throw new NotFoundException('Entity not found');
+
+    const individual = await this.individualEntityRepository.findByEntityId(entityId);
+    if (!individual) throw new NotFoundException('Individual profile not found');
+    return individual;
   }
 
   async createOrganizationEntity(subscriberId: string, userId: string, dto: CreateOrganizationEntityDto) {
@@ -166,6 +309,53 @@ export class EntitiesService {
         annual_revenue: dto.annual_revenue,
       });
       await manager.getRepository((this.organizationEntityRepository as any).repository.target).save(orgRecord);
+
+      // Save custom fields if provided
+      if (Array.isArray(dto.custom_fields) && dto.custom_fields.length) {
+        for (const cf of dto.custom_fields) {
+          const fieldRecord = this.entityCustomFieldRepository.create({
+            entity_id: savedEntity.id,
+            field_name: cf.field_name,
+            field_type: (cf.field_type ?? 'text') as any,
+            field_value: cf.field_value,
+            field_value_json: cf.field_value_json,
+            field_group: cf.field_group,
+            is_required: cf.is_required ?? false,
+            is_searchable: cf.is_searchable ?? false,
+            is_visible: cf.is_visible ?? true,
+            is_editable: cf.is_editable ?? true,
+            is_encrypted: cf.is_encrypted ?? false,
+            is_pii: cf.is_pii ?? false,
+            display_order: cf.display_order ?? 0,
+            created_by: userId,
+          } as any);
+          await manager.getRepository((this.entityCustomFieldRepository as any).repository.target).save(fieldRecord);
+        }
+      }
+
+      // Save related parties if provided
+      if (Array.isArray(dto.related_parties) && dto.related_parties.length) {
+        for (const rp of dto.related_parties) {
+          const assoc = this.organizationEntityAssociationRepository.create({
+            organization_id: orgRecord.id as any,
+            individual_id: rp.individual_id,
+            relationship_type: rp.relationship_type,
+            effective_from: new Date(rp.effective_from),
+            effective_to: rp.effective_to ? new Date(rp.effective_to) : undefined,
+            ownership_percentage: rp.ownership_percentage,
+            voting_rights_percentage: rp.voting_rights_percentage,
+            position_title: rp.position_title,
+            association_description: rp.association_description,
+            is_beneficial_owner: rp.is_beneficial_owner ?? false,
+            is_authorized_signatory: rp.is_authorized_signatory ?? false,
+            is_key_management_personnel: rp.is_key_management_personnel ?? false,
+            is_significant_control: rp.is_significant_control ?? false,
+            is_high_risk: rp.is_high_risk ?? false,
+            created_by: userId,
+          } as any);
+          await manager.getRepository((this.organizationEntityAssociationRepository as any).repository.target).save(assoc);
+        }
+      }
 
       // History log
       await manager.getRepository((this.entityHistoryRepository as any).repository.target).save(
