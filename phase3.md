@@ -1,242 +1,157 @@
-Full E2E Test Plan for KYC Application (Phase 3 - Entities & Relationships)
-Objective: Execute a comprehensive end-to-end (E2E) test plan for the NestJS KYC application, focusing on the newly implemented "Phase 3" features. This plan will cover:
+E2E Scenario Test & Fix for Entity Wizard Flow
+Role: You are an expert Senior Developer and QA Automation Engineer specializing in NestJS.
 
-Environment Setup: Running the app, database, and fixing critical seeder data.
+Objective: Your goal is to create a comprehensive End-to-End (E2E) test script for the new multi-stage "Entity Creation Wizard." The test must be written as a complete user scenario, where each step logically follows the one before it, storing and reusing data (like entity IDs) across requests.
 
-Individual API Tests: Validating each endpoint in the Entities module and the new IndividualRelationships module in isolation.
+Primary Directive: Fix As You Go
+You have full access to the entire codebase. As you write this test, you will inevitably find bugs, logical errors, or mismatches between controllers, services, and DTOs.
 
-E2E Scenarios: Testing complex user journeys that chain these APIs, with a heavy focus on the new "Multi-ID" flow, "Custom Fields," "Related Parties," and critical security (Multi-Tenancy & RBAC).
+You must fix the underlying application code first before you can make the test pass.
 
-Phase 1: Environment Setup & Data Correction
-Install Dependencies: Run npm install to ensure all packages are present.
+Pay close attention to these known problems and fix them:
 
-Configure Environment (.env):
+Missing Service Method: The EntitiesController has a POST /:entity_id/documents endpoint that calls this.entitiesService.addDocument(). This method does not exist in EntitiesService. You must create the addDocument method in EntitiesService to handle the document upload logic (similar to the createDocumentFromFile logic already in DocumentsService).
 
-Create a .env file in the root directory with all required variables (Database credentials, JWT secrets, Nodemailer credentials, Google OAuth keys).
+created_by in DTOs: Some DTOs, like CreateOrganizationRelationshipDto, and controllers, like OrganizationEntityAssociationsController, expect a userId or created_by field to be passed in the request Body. This is poor practice and a security risk.
 
-Start Database: Run docker compose up -d to start the PostgreSQL container.
+Your Fix: Modify all such controllers and services to get the userId from the JWT payload (req.user.sub) instead.
 
-CRITICAL FIX - Correct Seeder Data:
+Remove the created_by (or userId) fields from the corresponding DTOs (like CreateOrganizationRelationshipDto).
 
-Before seeding, open src/database/seeders/02-subscriber-users.seeder.ts.
+Critical ID Mismatch (Entity vs. Sub-Entity): The application uses two types of IDs:
 
-The file contains the plaintext password "hashed-password". This will cause all seeded user logins to fail.
+entity_id (from the main entities table).
 
-Action: Generate a valid bcrypt hash for a known password (e.g., "Password123!").
+The Primary Key id from the sub-tables (e.g., individual_entities.id or organization_entities.id).
 
-Replace all instances of "hashed-password" in that file with the new, valid bcrypt hash string.
+The Relationship DTOs (like CreateIndividualRelationshipDto) correctly require the sub-table id, not the entity_id.
 
-Run Migrations: Execute npm run migration:run (or the equivalent command) to run all migrations, including the new ones for individual-identity-documents and the modifications to individual_entities.
+Your Fix:
 
-Seed Database: Run npm run seed to populate the database with the corrected test data.
+Your test script must first fetch these sub-IDs after creating an entity.
 
-Run Application: Run npm run start:dev. Verify the application starts successfully.
+The endpoint GET /entities/:entity_id/individual exists. Use it to get the id for individual entities.
 
-Phase 2: Individual API Test Cases (Isolation)
-Prerequisite: Use Postman or a similar tool.
+The endpoint GET /entities/:entity_id/organization is missing. You must create this new endpoint in EntitiesController and EntitiesService to fetch the OrganizationEntity details (and its id) by its entity_id. This is essential for the Org-to-Org relationship test to work.
 
-Login as Admin (Bank): POST /api/v1/auth/login with user1@bank_one.test and "Password123!". Store the returned access_token as ADMIN_TOKEN_BANK.
+E2E Test Script Requirements (File: test/entities.e2e-spec.ts)
+Create a test file that executes the following scenario using jest and supertest:
 
-Login as Admin (Supermarket): POST /api/v1/auth/login with user1@supermarket.test. Store ADMIN_TOKEN_SUPERMARKET.
+1. Setup (beforeAll):
+Initialize App: Bootstrap the full NestJS AppModule.
 
-Login as Analyst (Bank): POST /api/v1/auth/login with user2@bank_one.test. Store ANALYST_TOKEN_BANK.
+Authenticate:
 
-Test Suite 1: EntitiesModule (/entities)
+Send a POST /auth/login request with valid test user credentials (e.g., admin@test.com, password123).
 
-API 2.1: GET /api/v1/entities (List Entities)
+Assert a 200 OK status.
 
-Test 2.1.1 (Success): Use ADMIN_TOKEN_BANK. GET /api/v1/entities. Expect 200 OK and a paginated list of entities seeded for bank_one.
+Store the returned access_token in a global variable.
 
-Test 2.1.2 (Filtering): Use ADMIN_TOKEN_BANK. GET /api/v1/entities?status=ACTIVE&entity_type=INDIVIDUAL. Expect 200 OK and a filtered list.
+Test File: Create a dummy test.pdf file in the /test directory (e.g., fs.writeFileSync(...)) to be used for file upload tests.
 
-Test 2.1.3 (Security): Use ANALYST_TOKEN_BANK. GET /api/v1/entities. Expect 200 OK (RBAC: view_entity permission).
+2. Test Scenario: The Wizard Flow
+Define global variables to store the IDs from step to step: individualEntityId, organizationEntityId, linkingIndividualId, linkingOrganizationId, individualSubId, organizationSubId, linkingIndividualSubId, linkingOrganizationSubId.
 
-API 2.3: POST /api/v1/entities/individuals (Create Individual)
+Describe: "Stage 1: Entity Creation"
 
-Test 2.3.1 (Success - Full Refactor): Use ADMIN_TOKEN_BANK. Send a POST request with a body matching create-individual-entity.dto.ts, specifically testing the new features:
+it('should CREATE a new IndividualEntity (Primary)'):
 
-JSON
+POST /entities/individual with a CreateIndividualEntityDto.
 
-{
-  "onboard": true,
-  "basic_information": { "name": "John Smith (Multi-ID Test)" /*...other fields*/ },
-  "self_declarations": { "is_pep": false, "has_criminal_record": false },
-  "identity_documents": [
-    {
-      "nationality": "EG",
-      "id_type": "NATIONAL_ID",
-      "id_number": "30001010101010",
-      "file": "base64_string_of_eg_id.pdf"
-    },
-    {
-      "nationality": "US",
-      "id_type": "PASSPORT",
-      "id_number": "E12345678",
-      "expiry_date": "2030-01-01",
-      "file": "base64_string_of_us_passport.jpg"
-    }
-  ],
-  "custom_fields": [
-    {
-      "field_key": "customer_source",
-      "field_value": "Walk-in",
-      "field_type": "TEXT",
-      "field_category": "Acquisition"
-    }
-  ],
-  "trigger_screening": true,
-  "trigger_risk_analysis": true
-}
-Expect: 201 Created. Store the new entity_id as NEW_INDIVIDUAL_ID.
+Include a custom_fields array with field_group: 'basic_info'.
 
-Verify: Check the database to confirm:
+Assert 201 Created.
 
-One record in entities.
+Store the id from the response body as individualEntityId.
 
-One record in individual_entities (with NO flat nationality or national_id fields).
+it('should CREATE a new OrganizationEntity (Primary)'):
 
-Two records in individual_identity_documents linked to this individual.
+POST /entities/organization with a CreateOrganizationEntityDto.
 
-One record in entity_custom_fields.
+Assert 201 Created.
 
-One record in entity_history with change_type: 'created'.
+Store the id as organizationEntityId.
 
-API 2.4: POST /api/v1/entities/organizations (Create Organization)
+it('should CREATE a linking IndividualEntity (Secondary)'):
 
-Test 2.4.1 (Success - Full Logic): Use ADMIN_TOKEN_BANK. Send a POST request testing related_parties and custom_fields:
+POST /entities/individual (e.g., "Jane Smith").
 
-JSON
+Assert 201 Created and store the id as linkingIndividualId.
 
-{
-  "onboard": true,
-  "basic_information": { "name": "Org (Full Test)", "country_of_incorporation": "US", "date_of_incorporation": "2020-01-01", "registered_address": "123 Main St" },
-  "related_parties": [
-    {
-      "individual_data": { "name": "Test UBO", "nationality": ["US"] },
-      "relationship_type": "UBO",
-      "ownership_percentage": 50
-    }
-  ],
-  "custom_fields": [
-    { "field_key": "business_line", "field_value": "Payments", "field_type": "TEXT", "field_category": "Business" }
-  ]
-}
-Expect: 201 Created. Store the new entity_id as NEW_ORG_ID.
+it('should CREATE a linking OrganizationEntity (Secondary)'):
 
-Verify: Check the database to confirm:
+POST /entities/organization (e.g., "Subsidiary Corp").
 
-One record in entities (NEW_ORG_ID).
+Assert 201 Created and store the id as linkingOrganizationId.
 
-One new IndividualEntity ("Test UBO") was also created.
+it('should FETCH and store all Sub-Entity IDs'):
 
-One record in organization_entity_associations linking NEW_ORG_ID to the new "Test UBO".
+GET /entities/:entity_id/individual for individualEntityId. Store body.id as individualSubId.
 
-One record in entity_custom_fields.
+GET /entities/:entity_id/individual for linkingIndividualId. Store body.id as linkingIndividualSubId.
 
-API 2.2: GET /api/v1/entities/{entity_id} (Get Details)
+GET /entities/:entity_id/organization (the endpoint you created) for organizationEntityId. Store body.id as organizationSubId.
 
-Test 2.2.1 (Success - Individual): Use ADMIN_TOKEN_BANK. GET /api/v1/entities/{NEW_INDIVIDUAL_ID}.
+GET /entities/:entity_id/organization for linkingOrganizationId. Store body.id as linkingOrganizationSubId.
 
-Expect: 200 OK. Verify the response body:
+Assert 200 OK for all.
 
-profile does not contain flat nationality or national_id.
+Describe: "Stage 2: Documents & Custom Fields"
 
-The root of the response (or a new field) contains the identity_documents array (with 2 items).
+it('should ADD a Document to the Organization'):
 
-The custom_fields array contains 1 item ("customer_source").
+POST /entities/:entity_id/documents using organizationEntityId.
 
-Test 2.2.2 (Success - Organization): Use ADMIN_TOKEN_BANK. GET /api/v1/entities/{NEW_ORG_ID}.
+Use .attach('file', 'test/test.pdf') for the file upload.
 
-Expect: 200 OK. Verify the relationships array contains the "Test UBO".
+Use .field(...) to send DTO data like document_type: 'incorporation_certificate'.
 
-API 2.8: GET /api/v1/entities/{entity_id}/history (Get History)
+Assert 201 Created.
 
-Test 2.8.1 (Success): Use ADMIN_TOKEN_BANK. GET /api/v1/entities/{NEW_INDIVIDUAL_ID}/history.
+it('should ADD Stage-2 Custom Fields to the Individual'):
 
-Expect: 200 OK with at least one "created" record.
+POST /entities/:entity_id/custom-fields using individualEntityId.
 
-API 2.5: PUT /api/v1/entities/{entity_id} (Update Entity)
+Send DTO AddCustomFieldsDto with field_group: 'documents'.
 
-Test 2.5.1 (Success): Use ADMIN_TOKEN_BANK. PUT /api/v1/entities/{NEW_INDIVIDUAL_ID} with a body to update occupation and add a new custom_field.
+Assert 201 Created and that body.fields[0].field_group is 'documents'.
 
-Expect: 200 OK.
+Describe: "Stage 3: Related Parties & Final Custom Fields"
 
-Verify: Check GET /api/v1/entities/{NEW_INDIVIDUAL_ID}/history. Expect a new "updated" record in entity_history.
+it('should ADD an Organization-to-Individual relationship (Director)'):
 
-API 2.6: PATCH /api/v1/entities/{entity_id}/status (Update Status)
+POST /organization-entity-associations.
 
-Test 2.6.1 (Success): Use ADMIN_TOKEN_BANK. PATCH /api/v1/entities/{NEW_INDIVIDUAL_ID}/status with body {"status": "BLOCKED"}.
+Send DTO using organization_entity_id: organizationEntityId and individual_entity_id: linkingIndividualId.
 
-Expect: 200 OK. Verify status is "BLOCKED".
+Assert 201 Created.
 
-API 2.7: POST /api/v1/entities/bulk-action (Bulk Action)
+it('should ADD an Organization-to-Organization relationship (Subsidiary)'):
 
-Test 2.7.1 (Success - Delete): Use ADMIN_TOKEN_BANK. POST /api/v1/entities/bulk-action with body {"entity_ids": ["{NEW_INDIVIDUAL_ID}"], "action": "DELETE"}.
+POST /organization-relationships.
 
-Expect: 200 OK.
+Send DTO using the sub-IDs: primary_organization_id: organizationSubId and related_organization_id: linkingOrganizationSubId.
 
-Verify: GET /api/v1/entities/{NEW_INDIVIDUAL_ID}. Expect 404 Not Found (due to soft delete).
+Assert 201 Created.
 
-API 2.9: POST /api/v1/entities/export (Export Entities)
+it('should ADD an Individual-to-Individual relationship (Family)'):
 
-Test 2.9.1 (Success): Use ADMIN_TOKEN_BANK. POST /api/v1/entities/export with filters.
+POST /relationships.
 
-Expect: 202 Accepted response with export_id and status: 'PROCESSING'.
+Send DTO using the sub-IDs: primary_individual_id: individualSubId and related_individual_id: linkingIndividualSubId.
 
-Test Suite 2: IndividualEntityRelationshipsModule (/entities/:id/relationships)
+Assert 201 Created.
 
-Prerequisite: Create two new individuals: INDIVIDUAL_A_ID and INDIVIDUAL_B_ID.
+it('should ADD Stage-3 Custom Fields to the Organization'):
 
-Test 2.10.1 (Success - Create Relation): Use ADMIN_TOKEN_BANK. POST /api/v1/entities/{INDIVIDUAL_A_ID}/relationships with body:
+POST /entities/:entity_id/custom-fields using organizationEntityId.
 
-JSON
+Send DTO AddCustomFieldsDto with field_group: 'related_parties'.
 
-{
-  "related_individual_id": "{INDIVIDUAL_B_ID_FROM_ENTITY_TABLE}",
-  "relationship_type": "PARTNER",
-  "effective_from": "2020-01-01"
-}
-Expect: 201 Created.
+Assert 201 Created and that body.fields[0].field_group is 'related_parties'.
 
-Verify: Check the individual_entity_relationships table for the new record.
+6. Teardown (afterAll):
+Cleanup: Delete the test.pdf file (fs.unlinkSync(...)).
 
-Test 2.10.2 (Success - Get Relations): Use ADMIN_TOKEN_BANK. GET /api/v1/entities/{INDIVIDUAL_A_ID}/relationships.
-
-Expect: 200 OK with an array containing the "PARTNER" relationship to INDIVIDUAL_B_ID.
-
-Test 2.10.3 (Success - Delete Relation): Get the relationship_id from the test above. DELETE /api/v1/individual-relationships/{relationship_id}.
-
-Expect: 204 No Content or 200 OK.
-
-Verify: GET /api/v1/entities/{INDIVIDUAL_A_ID}/relationships. Expect an empty array [].
-
-Phase 3: E2E Scenarios (Security & Flow)
-Scenario 3.1: Multi-Tenancy Security (CRITICAL TEST)
-
-Action: Use ADMIN_TOKEN_BANK (from Bank 1).
-
-Action: Get the entity_id of a seeded entity belonging to Supermarket 1 (e.g., 550e8400-e29b-41d4-a716-446655440021 from 08-entities.seeder.ts). Let's call it SUPERMARKET_ENTITY_ID.
-
-Test: GET /api/v1/entities/{SUPERMARKET_ENTITY_ID}.
-
-Expected: 404 Not Found. (The service entities.service.ts must scope the findOne query by subscriberId, making this entity "not found" for Bank 1's admin).
-
-Test: PUT /api/v1/entities/{SUPERMARKET_ENTITY_ID} (with any valid body).
-
-Expected: 404 Not Found.
-
-Test: POST /api/v1/entities/{SUPERMARKET_ENTITY_ID}/relationships (with any valid body).
-
-Expected: 404 Not Found (or 403 Forbidden).
-
-Scenario 3.2: Role-Based Access Control (RBAC)
-
-Action: Use ANALYST_TOKEN_BANK.
-
-Test (Success): GET /api/v1/entities. Expected: 200 OK (Permission: view_entity).
-
-Test (Success): POST /api/v1/entities/individuals (with valid body). Expected: 201 Created (Permission: create_entity).
-
-Test (Failure): POST /api/v1/entities/bulk-action (with action: "DELETE"). Expected: 403 Forbidden (Permission: admin only).
-
-Test (Failure): PATCH /api/v1/entities/{NEW_INDIVIDUAL_ID}/status. Expected: 403 Forbidden (Permission: update_entity_status).
+Close App: Shut down the NestJS application (await app.close()).

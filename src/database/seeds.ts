@@ -19,6 +19,7 @@ import { seedOrganizationRelationships } from './seeders/15-organization-relatio
 import { seedOrganizationAssociations } from './seeders/16-organization-associations.seeder';
 import { seedDocuments } from './seeders/17-documents.seeder';
 import { seedScreeningAnalysis } from './seeders/18-screening-analysis.seeder';
+import { seedWizardTestingData } from './seeders/19-wizard-testing.seeder';
 
 async function runSeeds() {
   await AppDataSource.initialize();
@@ -76,6 +77,10 @@ async function runSeeds() {
     // System logs (can reference any table)
     console.log('Seeding: logs');
     await seedLogs(AppDataSource);
+    
+    // Wizard testing data
+    console.log('Seeding: wizard testing data');
+    await seedWizardTestingData(AppDataSource);
     
     console.log('✅ Comprehensive seeding completed successfully!');
     console.log('📊 All tables have been populated with realistic test data');

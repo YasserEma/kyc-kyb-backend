@@ -39,7 +39,7 @@ export class IndividualEntityRelationshipsController {
   @ApiOperation({ summary: 'Create a new relationship between individuals' })
   async create(@Req() req: Request, @Body() dto: any) {
     const payload = req.user as any;
-    return this.service.createRelationship({ subscriberId: payload.subscriberId, userId: payload.userId, data: dto });
+    return this.service.createRelationship({ subscriberId: payload.subscriberId, userId: payload.sub, data: dto });
   }
 
   @Patch(':relationship_id/verify')
@@ -49,7 +49,7 @@ export class IndividualEntityRelationshipsController {
   @ApiParam({ name: 'relationship_id', required: true })
   async verify(@Req() req: Request, @Param('relationship_id') id: string, @Body() dto: { is_verified: boolean; verification_method?: string }) {
     const payload = req.user as any;
-    return this.service.verifyRelationship(id, payload.userId, dto?.is_verified, dto?.verification_method);
+    return this.service.verifyRelationship(id, payload.sub, dto?.is_verified, dto?.verification_method);
   }
 
   @Patch(':relationship_id/review')
@@ -59,7 +59,7 @@ export class IndividualEntityRelationshipsController {
   @ApiParam({ name: 'relationship_id', required: true })
   async review(@Req() req: Request, @Param('relationship_id') id: string, @Body() dto: { next_review_date?: Date }) {
     const payload = req.user as any;
-    return this.service.reviewRelationship(id, payload.userId, dto?.next_review_date);
+    return this.service.reviewRelationship(id, payload.sub, dto?.next_review_date);
   }
 
   @Patch(':relationship_id/risk')
@@ -69,7 +69,7 @@ export class IndividualEntityRelationshipsController {
   @ApiParam({ name: 'relationship_id', required: true })
   async updateRisk(@Req() req: Request, @Param('relationship_id') id: string, @Body() dto: { risk_level: string; risk_factors?: string }) {
     const payload = req.user as any;
-    return this.service.updateRisk(id, payload.userId, dto?.risk_level, dto?.risk_factors);
+    return this.service.updateRisk(id, payload.sub, dto?.risk_level, dto?.risk_factors);
   }
 
   @Get('stats')

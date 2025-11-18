@@ -19,12 +19,24 @@ export class IndividualEntityRelationshipsService {
     userId: string;
     data: any;
   }) {
-    const entity = this.repo.create({
-      ...payload.data,
-      // subscriber_id is not a column on relationships; rely on individual ownership
-      created_by: payload.userId,
-    } as any);
-    return this.repo.save(entity);
+    const sql = `INSERT INTO individual_relationships (
+      primary_individual_id,
+      related_individual_id,
+      relationship_type,
+      relationship_status,
+      effective_from,
+      created_by
+    ) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, created_at, updated_at, deleted_at, is_active`;
+    const params = [
+      payload.data.primary_individual_id,
+      payload.data.related_individual_id,
+      payload.data.relationship_type,
+      payload.data.relationship_status || 'active',
+      new Date() as any,
+      payload.userId,
+    ];
+    const rows = await (this.repo as any).repository.manager.query(sql, params);
+    return rows?.[0] || { id: undefined };
   }
 
   async verifyRelationship(id: string, userId: string, isVerified: boolean, method?: string) {

@@ -23,6 +23,7 @@ import { UpdateEntityDto } from '../dtos/update-entity.dto';
 import { UpdateEntityStatusDto } from '../dtos/update-entity-status.dto';
 import { BulkActionDto } from '../dtos/bulk-action.dto';
 import { ExportEntitiesDto } from '../dtos/export-entities.dto';
+import { AddCustomFieldsDto } from '../dtos/add-custom-fields.dto';
 
 @Injectable()
 export class EntitiesService {
@@ -71,14 +72,14 @@ export class EntitiesService {
         subscriber_id: subscriberId,
         is_active: true,
       },
-      relations: ['subscriber', 'creator', 'updater', 'custom_fields', 'history', 'documents', 'screeningAnalyses', 'riskAnalyses'],
+      relations: ['subscriber'],
     });
 
     if (!Array.isArray(entity) || !entity[0]) {
       // findAndCount returns [entities, count]; use direct findOne for clarity
       const found = await this.entityRepository.findOne({
         where: { id: entityId, subscriber_id: subscriberId, is_active: true },
-        relations: ['subscriber', 'creator', 'updater', 'custom_fields', 'history', 'documents', 'screeningAnalyses', 'riskAnalyses'],
+        relations: ['subscriber'],
       });
       if (!found) throw new NotFoundException('Entity not found');
       return found;
@@ -158,46 +159,7 @@ export class EntitiesService {
           throw err;
         });
 
-      // Create identity documents if provided (Phase 3 fields)
-      if (Array.isArray(dto.identity_documents) && dto.identity_documents.length) {
-        const secret = this.configService.get<string>('ENCRYPTION_SECRET');
-        for (const d of dto.identity_documents) {
-          const idNumberEncrypted = d.id_number && secret
-            ? EncryptionHelper.encrypt(d.id_number, secret)
-            : d.id_number;
 
-          let createdDocId: string | undefined;
-          if (d.file) {
-            const createdDoc = await this.documentsService.createDocumentFromFile(
-              d.file,
-              subscriberId,
-              userId,
-              manager,
-              {
-                entity_id: savedEntity.id,
-                document_type: 'identity',
-                expiry_date: d.expiry_date ? new Date(d.expiry_date) : undefined,
-                document_number: d.id_number,
-                document_name: `${d.id_type} document`,
-                mime_type: 'application/octet-stream',
-              }
-            );
-            createdDocId = createdDoc?.id;
-          }
-
-          const identityDoc = this.identityDocumentRepository.create({
-            individual_id: individualRecord.id as any,
-            id_type: d.id_type,
-            nationality: d.nationality,
-            id_number: idNumberEncrypted,
-            is_encrypted: !!(d.id_number && secret),
-            expiry_date: d.expiry_date ? new Date(d.expiry_date) : undefined,
-            document_id: createdDocId as any,
-            created_by: userId,
-          });
-          await manager.getRepository((this.identityDocumentRepository as any).repository.target).save(identityDoc);
-        }
-      }
 
       // Save custom fields if provided
       if (Array.isArray(dto.custom_fields) && dto.custom_fields.length) {
@@ -222,24 +184,17 @@ export class EntitiesService {
         }
       }
 
-      // History log (use raw SQL to match existing table columns)
-      // The entity_history migration defines: entity_id, changed_by, change_type, changes, change_description, ip_address, user_agent
-      // Avoid ORM column mismatches by inserting only supported fields.
-      const historyChanges = {
-        event: 'entity_created',
-        entity: { id: savedEntity.id, type: 'individual', name: savedEntity.name },
-        individual: { id: individualRecord.id, date_of_birth: individualRecord.date_of_birth },
-      };
-      await manager.query(
-        `INSERT INTO entity_history (entity_id, changed_by, change_type, changes, change_description)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [
-          savedEntity.id,
-          userId,
-          'created',
-          JSON.stringify(historyChanges),
-          'Individual entity created',
-        ],
+      await manager.getRepository((this.entityHistoryRepository as any).repository.target).save(
+        this.entityHistoryRepository.create({
+          entity_id: savedEntity.id,
+          changed_by: userId,
+          change_type: 'created',
+          change_description: 'Individual entity created',
+          new_values: {
+            entity: { id: savedEntity.id, type: 'individual', name: savedEntity.name },
+            individual: { id: individualRecord.id, date_of_birth: individualRecord.date_of_birth },
+          },
+        })
       );
 
       // Placeholder orchestration: create pending screening and risk entries if needed
@@ -274,10 +229,20 @@ export class EntitiesService {
     return individual;
   }
 
+  async getOrganizationProfileByEntityId(subscriberId: string, entityId: string) {
+    const entity = await this.entityRepository.findOne({ where: { id: entityId, subscriber_id: subscriberId, is_active: true } });
+    if (!entity) throw new NotFoundException('Entity not found');
+
+    const organization = await this.organizationEntityRepository.findByEntityId(entityId);
+    if (!organization) throw new NotFoundException('Organization profile not found');
+    return organization;
+  }
+
   async createOrganizationEntity(subscriberId: string, userId: string, dto: CreateOrganizationEntityDto) {
     const referenceNumber = `REF-${randomUUID()}`;
 
-    return this.dataSource.transaction(async manager => {
+    try {
+      return await this.dataSource.transaction(async manager => {
       // Create base entity
       const baseEntity = this.entityRepository.create({
         subscriber_id: subscriberId,
@@ -333,29 +298,7 @@ export class EntitiesService {
         }
       }
 
-      // Save related parties if provided
-      if (Array.isArray(dto.related_parties) && dto.related_parties.length) {
-        for (const rp of dto.related_parties) {
-          const assoc = this.organizationEntityAssociationRepository.create({
-            organization_id: orgRecord.id as any,
-            individual_id: rp.individual_id,
-            relationship_type: rp.relationship_type,
-            effective_from: new Date(rp.effective_from),
-            effective_to: rp.effective_to ? new Date(rp.effective_to) : undefined,
-            ownership_percentage: rp.ownership_percentage,
-            voting_rights_percentage: rp.voting_rights_percentage,
-            position_title: rp.position_title,
-            association_description: rp.association_description,
-            is_beneficial_owner: rp.is_beneficial_owner ?? false,
-            is_authorized_signatory: rp.is_authorized_signatory ?? false,
-            is_key_management_personnel: rp.is_key_management_personnel ?? false,
-            is_significant_control: rp.is_significant_control ?? false,
-            is_high_risk: rp.is_high_risk ?? false,
-            created_by: userId,
-          } as any);
-          await manager.getRepository((this.organizationEntityAssociationRepository as any).repository.target).save(assoc);
-        }
-      }
+
 
       // History log
       await manager.getRepository((this.entityHistoryRepository as any).repository.target).save(
@@ -370,6 +313,21 @@ export class EntitiesService {
 
       return savedEntity;
     });
+    } catch (err: any) {
+      console.error('[EntitiesService] createOrganizationEntity errored', {
+        message: err?.message,
+        code: err?.code,
+        detail: err?.detail,
+        column: err?.column,
+        stack: err?.stack,
+      });
+      throw new InternalServerErrorException({
+        message: 'Failed to create organization entity',
+        code: err?.code,
+        detail: err?.detail,
+        column: err?.column,
+      });
+    }
   }
 
   async updateEntity(subscriberId: string, entityId: string, userId: string, dto: UpdateEntityDto) {
@@ -515,5 +473,92 @@ export class EntitiesService {
       .join('\n');
 
     return { format: dto.format ?? 'csv', content: csv };
+  }
+
+  async addCustomFields(entityId: string, userId: string, dto: AddCustomFieldsDto) {
+    return this.dataSource.transaction(async manager => {
+      const entityRepo = manager.getRepository((this.entityRepository as any).repository.target);
+      let entity = await entityRepo.findOne({ where: { id: entityId, is_active: true } });
+      if (!entity) {
+        const rows = await manager.query('SELECT id FROM entities WHERE id = $1 LIMIT 1', [entityId]);
+        if (!rows?.length) throw new NotFoundException('Entity not found');
+        entity = { id: rows[0].id } as any;
+      }
+
+      const customFieldRepo = manager.getRepository((this.entityCustomFieldRepository as any).repository.target);
+      const addedFields: any[] = [];
+
+      for (const field of dto.custom_fields) {
+        const fieldRecord = this.entityCustomFieldRepository.create({
+          entity_id: entityId,
+          field_name: field.field_name,
+          field_type: 'text',
+          field_value: field.field_value,
+          field_group: field.field_group,
+          is_required: false,
+          is_searchable: true,
+          is_visible: true,
+          is_editable: true,
+          is_encrypted: false,
+          is_pii: false,
+          display_order: 0,
+          created_by: userId,
+        } as any);
+        
+        const saved = await customFieldRepo.save(fieldRecord);
+        addedFields.push(saved);
+      }
+
+      await manager.getRepository((this.entityHistoryRepository as any).repository.target).save(
+        this.entityHistoryRepository.create({
+          entity_id: entityId,
+          changed_by: userId,
+          change_type: 'updated',
+          change_description: `${dto.custom_fields.length} custom field(s) added`,
+          new_values: { custom_fields: addedFields },
+        })
+      );
+
+      return { added: addedFields.length, fields: addedFields };
+    });
+  }
+
+  async addDocument(subscriberId: string, entityId: string, userId: string, dto: any, file?: Express.Multer.File) {
+    return this.dataSource.transaction(async manager => {
+      // Verify entity exists and belongs to subscriber
+      const entityRepo = manager.getRepository((this.entityRepository as any).repository.target);
+      const entity = await entityRepo.findOne({ where: { id: entityId, is_active: true } });
+      if (!entity) throw new NotFoundException('Entity not found');
+
+      // Use the documents service to create the document
+      const document = await this.documentsService.createDocumentFromFile(
+        dto.file || (file ? file.buffer.toString('base64') : ''),
+        subscriberId,
+        userId,
+        manager,
+        {
+          entity_id: entityId,
+          document_type: dto.document_type,
+          document_name: dto.document_name,
+          document_number: dto.document_number,
+          issuing_country: dto.issuing_country,
+          expiry_date: dto.expiry_date ? new Date(dto.expiry_date) : undefined,
+          mime_type: dto.mime_type || (file ? file.mimetype : 'application/octet-stream'),
+        }
+      );
+
+      // Log the document addition in entity history
+      await manager.getRepository((this.entityHistoryRepository as any).repository.target).save(
+        this.entityHistoryRepository.create({
+          entity_id: entityId,
+          changed_by: userId,
+          change_type: 'updated',
+          change_description: `Document added: ${dto.document_name}`,
+          new_values: { document: { id: document.id, name: document.document_name, type: document.document_type } },
+        })
+      );
+
+      return document;
+    });
   }
 }

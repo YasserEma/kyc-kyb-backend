@@ -50,7 +50,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
         is_active: true,
         deleted_at: IsNull()
       },
-      relations: ['entity', 'entity.subscriber', 'associations', 'relationships']
+      relations: ['entity', 'entity.subscriber']
     });
   }
 

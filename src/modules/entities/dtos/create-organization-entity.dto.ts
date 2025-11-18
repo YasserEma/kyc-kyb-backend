@@ -1,6 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDateString, IsEmail, IsInt, IsOptional, IsString, IsArray, ValidateNested, IsUUID, IsBoolean, IsNumber } from 'class-validator';
-import { Type } from 'class-transformer';
 
 export class CreateOrganizationEntityDto {
   @ApiProperty({ description: 'Legal name of the organization' })
@@ -84,13 +83,7 @@ export class CreateOrganizationEntityDto {
   @IsArray()
   custom_fields?: CustomFieldDto[];
 
-  @ApiPropertyOptional({ description: 'Related parties', type: 'array' })
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => RelatedPartyDto)
-  related_parties?: RelatedPartyDto[];
-}
+  }
 
 export class CustomFieldDto {
   @ApiProperty({ description: 'Field name' })
@@ -143,68 +136,4 @@ export class CustomFieldDto {
   @ApiPropertyOptional({ description: 'Display order' })
   @IsOptional()
   display_order?: number;
-}
-
-export class RelatedPartyDto {
-  @ApiProperty({ description: 'Related individual entity_id' })
-  @IsUUID()
-  individual_id!: string;
-
-  @ApiProperty({ description: 'Relationship type', example: 'BENEFICIAL_OWNER' })
-  @IsString()
-  relationship_type!: string;
-
-  @ApiProperty({ description: 'Effective from date (ISO date)' })
-  @IsDateString()
-  effective_from!: string;
-
-  @ApiPropertyOptional({ description: 'Effective to date (ISO date)' })
-  @IsOptional()
-  @IsDateString()
-  effective_to?: string;
-
-  @ApiPropertyOptional({ description: 'Ownership percentage' })
-  @IsOptional()
-  @IsNumber()
-  ownership_percentage?: number;
-
-  @ApiPropertyOptional({ description: 'Voting rights percentage' })
-  @IsOptional()
-  @IsNumber()
-  voting_rights_percentage?: number;
-
-  @ApiPropertyOptional({ description: 'Position title' })
-  @IsOptional()
-  @IsString()
-  position_title?: string;
-
-  @ApiPropertyOptional({ description: 'Association description' })
-  @IsOptional()
-  @IsString()
-  association_description?: string;
-
-  @ApiPropertyOptional({ description: 'Flags for roles and risk' })
-  @IsOptional()
-  @IsBoolean()
-  is_beneficial_owner?: boolean;
-
-  @ApiPropertyOptional({ description: 'Authorized signatory' })
-  @IsOptional()
-  @IsBoolean()
-  is_authorized_signatory?: boolean;
-
-  @ApiPropertyOptional({ description: 'Key management personnel' })
-  @IsOptional()
-  @IsBoolean()
-  is_key_management_personnel?: boolean;
-
-  @ApiPropertyOptional({ description: 'Significant control' })
-  @IsOptional()
-  @IsBoolean()
-  is_significant_control?: boolean;
-
-  @ApiPropertyOptional({ description: 'High risk association' })
-  @IsOptional()
-  @IsBoolean()
-  is_high_risk?: boolean;
 }

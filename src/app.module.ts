@@ -8,6 +8,8 @@ import appConfig from './config/app.config';
 import { validateEnv } from './config/validation.schema';
 import { AuthModule } from './modules/auth/auth.module';
 import { EntitiesModule } from './modules/entities/entities.module';
+import { OrganizationRelationshipsModule } from './modules/organization-relationships/organization-relationships.module';
+import { OrganizationEntityAssociationsModule } from './modules/organization-entity-associations/organization-entity-associations.module';
 
 const shouldInitDb = process.env.SKIP_DB !== 'true';
 const typeOrmImports = shouldInitDb
@@ -50,6 +52,8 @@ const typeOrmImports = shouldInitDb
     ...typeOrmImports,
     AuthModule,
     EntitiesModule,
+    OrganizationRelationshipsModule,
+    OrganizationEntityAssociationsModule,
   ],
 })
 export class AppModule {}
