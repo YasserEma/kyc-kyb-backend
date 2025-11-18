@@ -9,6 +9,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { GoogleOAuthGuard } from './guards/google-oauth.guard';
+import { RolesGuard } from './guards/roles.guard';
 import { SubscribersModule } from '../subscribers/subscribers.module';
 import { SubscriberUsersModule } from '../subscriber-users/subscriber-users.module';
 
@@ -40,11 +41,14 @@ import { SubscriberUsersModule } from '../subscriber-users/subscriber-users.modu
     GoogleStrategy,
     JwtAuthGuard,
     GoogleOAuthGuard,
+    RolesGuard,
   ],
   exports: [
     AuthService,
     JwtAuthGuard,
     GoogleOAuthGuard,
+    EmailService,
+    RolesGuard,
     PassportModule,
     JwtModule,
   ],

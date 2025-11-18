@@ -268,4 +268,107 @@ export class QueryHelper {
   static createNotNullCondition(): any {
     return Not(IsNull());
   }
+
+  /**
+   * Backwards-compatible helper used across repositories: applies an IN filter.
+   * Accepts a fully-qualified field path (e.g. 'table.column') and does not prepend alias.
+   */
+  static applyInFilter<T extends ObjectLiteral>(
+    queryBuilder: SelectQueryBuilder<T>,
+    fieldPath: string,
+    values: any | any[],
+    parameterName: string = 'inValues'
+  ): SelectQueryBuilder<T> {
+    if (values === undefined || values === null) {
+      return queryBuilder;
+    }
+
+    const valuesArray = Array.isArray(values)
+      ? values
+      : (values !== '' ? [values] : []);
+
+    if (valuesArray.length === 0) {
+      return queryBuilder;
+    }
+
+    const chunkSize = 1000;
+    if (valuesArray.length <= chunkSize) {
+      return queryBuilder.andWhere(`${fieldPath} IN (:...${parameterName})`, { [parameterName]: valuesArray });
+    }
+
+    const chunks: any[][] = [];
+    for (let i = 0; i < valuesArray.length; i += chunkSize) {
+      chunks.push(valuesArray.slice(i, i + chunkSize));
+    }
+
+    const conditions = chunks.map((chunk, index) => {
+      const chunkParamName = `${parameterName}_${index}`;
+      queryBuilder.setParameter(chunkParamName, chunk);
+      return `${fieldPath} IN (:...${chunkParamName})`;
+    });
+
+    return queryBuilder.andWhere(`(${conditions.join(' OR ')})`);
+  }
+
+  /**
+   * Applies a tags filter using ILIKE matching on a text/array field.
+   * Accepts a fully-qualified field path (e.g. 'table.column').
+   * Matches any of the provided tags (OR semantics).
+   */
+  static applyTagsFilter<T extends ObjectLiteral>(
+    queryBuilder: SelectQueryBuilder<T>,
+    fieldPath: string,
+    tags: string | string[] | undefined
+  ): SelectQueryBuilder<T> {
+    if (tags === undefined || tags === null) {
+      return queryBuilder;
+    }
+
+    const tagList: string[] = Array.isArray(tags)
+      ? tags.filter(t => !!t && t.trim() !== '').map(t => t.trim())
+      : String(tags)
+          .split(',')
+          .map(t => t.trim())
+          .filter(t => t !== '');
+
+    if (tagList.length === 0) {
+      return queryBuilder;
+    }
+
+    const conditions: string[] = [];
+    const params: Record<string, string> = {};
+
+    tagList.forEach((tag, idx) => {
+      const paramName = `tag_${idx}`;
+      conditions.push(`${fieldPath} ILIKE :${paramName}`);
+      params[paramName] = QueryHelper.buildLikeQuery(tag, 'both');
+    });
+
+    return queryBuilder.andWhere(`(${conditions.join(' OR ')})`, params);
+  }
+
+  /**
+   * Applies a date range filter to a fully-qualified field path.
+   * Adds >= from and <= to conditions when provided.
+   */
+  static applyDateRangeFilter<T extends ObjectLiteral>(
+    queryBuilder: SelectQueryBuilder<T>,
+    fieldPath: string,
+    from?: Date | string,
+    to?: Date | string
+  ): SelectQueryBuilder<T> {
+    const safe = fieldPath.replace(/[^a-zA-Z0-9_]/g, '_');
+
+    if (from) {
+      const fromParam = `${safe}_from`;
+      queryBuilder.andWhere(`${fieldPath} >= :${fromParam}`, { [fromParam]: from });
+    }
+
+    if (to) {
+      const toParam = `${safe}_to`;
+      queryBuilder.andWhere(`${fieldPath} <= :${toParam}`, { [toParam]: to });
+    }
+
+    return queryBuilder;
+  }
 }

@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder , IsNull} from 'typeorm';
 import { BaseRepository } from '../../common/repositories/base.repository';
-import { OrganizationEntityEntity } from '../entities/organization-entity.entity';
-import { PaginationOptions, PaginationResult } from '../../../utils/database/pagination.helper';
+import { OrganizationEntity } from '../entities/organization-entity.entity';
+import { PaginationOptions, PaginationResult } from '../../common/interfaces/pagination.interface';
+import { QueryHelper } from '../../../utils/database/query.helper';
 import { BaseFilter } from '../../common/interfaces/filter.interface';
 
 export interface OrganizationEntityFilter extends BaseFilter {
@@ -22,13 +23,14 @@ export interface OrganizationEntityFilter extends BaseFilter {
   number_of_employees_max?: number;
   annual_revenue_min?: number;
   annual_revenue_max?: number;
+  search?: string;
 }
 
 @Injectable()
-export class OrganizationEntityRepository extends BaseRepository<OrganizationEntityEntity> {
+export class OrganizationEntityRepository extends BaseRepository<OrganizationEntity> {
   constructor(
-    @InjectRepository(OrganizationEntityEntity)
-    private readonly organizationEntityRepository: Repository<OrganizationEntityEntity>,
+    @InjectRepository(OrganizationEntity)
+    private readonly organizationEntityRepository: Repository<OrganizationEntity>,
   ) {
     super(organizationEntityRepository);
   }
@@ -36,12 +38,12 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
   async findWithFilters(
     filters: OrganizationEntityFilter = {},
     pagination: PaginationOptions = { page: 1, limit: 10 }
-  ): Promise<PaginationResult<OrganizationEntityEntity>> {
+  ): Promise<PaginationResult<OrganizationEntity>> {
     const queryBuilder = this.createFilteredQuery(filters);
-    return this.paginate(queryBuilder, pagination);
+    return QueryHelper.buildPaginationResult(queryBuilder, pagination);
   }
 
-  async findByEntityId(entityId: string): Promise<OrganizationEntityEntity | null> {
+  async findByEntityId(entityId: string): Promise<OrganizationEntity | null> {
     return this.organizationEntityRepository.findOne({
       where: {
         entity_id: entityId,
@@ -56,7 +58,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
     legalName: string,
     filters: Omit<OrganizationEntityFilter, 'legal_name'> = {},
     pagination: PaginationOptions = { page: 1, limit: 10 }
-  ): Promise<PaginationResult<OrganizationEntityEntity>> {
+  ): Promise<PaginationResult<OrganizationEntity>> {
     return this.findWithFilters({ ...filters, legal_name: legalName }, pagination);
   }
 
@@ -64,7 +66,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
     tradeName: string,
     filters: Omit<OrganizationEntityFilter, 'trade_name'> = {},
     pagination: PaginationOptions = { page: 1, limit: 10 }
-  ): Promise<PaginationResult<OrganizationEntityEntity>> {
+  ): Promise<PaginationResult<OrganizationEntity>> {
     return this.findWithFilters({ ...filters, trade_name: tradeName }, pagination);
   }
 
@@ -72,7 +74,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
     countryOfIncorporation: string,
     filters: Omit<OrganizationEntityFilter, 'country_of_incorporation'> = {},
     pagination: PaginationOptions = { page: 1, limit: 10 }
-  ): Promise<PaginationResult<OrganizationEntityEntity>> {
+  ): Promise<PaginationResult<OrganizationEntity>> {
     return this.findWithFilters({ ...filters, country_of_incorporation: countryOfIncorporation }, pagination);
   }
 
@@ -80,7 +82,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
     organizationType: 'corporation' | 'llc' | 'partnership' | 'sole_proprietorship' | 'non_profit' | 'government' | 'other',
     filters: Omit<OrganizationEntityFilter, 'organization_type'> = {},
     pagination: PaginationOptions = { page: 1, limit: 10 }
-  ): Promise<PaginationResult<OrganizationEntityEntity>> {
+  ): Promise<PaginationResult<OrganizationEntity>> {
     return this.findWithFilters({ ...filters, organization_type: organizationType }, pagination);
   }
 
@@ -88,7 +90,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
     legalStructure: 'public' | 'private' | 'partnership' | 'cooperative' | 'trust' | 'foundation' | 'other',
     filters: Omit<OrganizationEntityFilter, 'legal_structure'> = {},
     pagination: PaginationOptions = { page: 1, limit: 10 }
-  ): Promise<PaginationResult<OrganizationEntityEntity>> {
+  ): Promise<PaginationResult<OrganizationEntity>> {
     return this.findWithFilters({ ...filters, legal_structure: legalStructure }, pagination);
   }
 
@@ -96,11 +98,11 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
     industrySector: string,
     filters: Omit<OrganizationEntityFilter, 'industry_sector'> = {},
     pagination: PaginationOptions = { page: 1, limit: 10 }
-  ): Promise<PaginationResult<OrganizationEntityEntity>> {
+  ): Promise<PaginationResult<OrganizationEntity>> {
     return this.findWithFilters({ ...filters, industry_sector: industrySector }, pagination);
   }
 
-  async findByTaxId(taxId: string): Promise<OrganizationEntityEntity | null> {
+  async findByTaxId(taxId: string): Promise<OrganizationEntity | null> {
     return this.organizationEntityRepository.findOne({
       where: {
         tax_identification_number: taxId,
@@ -111,7 +113,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
     });
   }
 
-  async findByCommercialRegistrationNumber(registrationNumber: string): Promise<OrganizationEntityEntity | null> {
+  async findByCommercialRegistrationNumber(registrationNumber: string): Promise<OrganizationEntity | null> {
     return this.organizationEntityRepository.findOne({
       where: {
         commercial_registration_number: registrationNumber,
@@ -127,7 +129,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
     maxEmployees: number,
     filters: Partial<OrganizationEntityFilter> = {},
     pagination: PaginationOptions = { page: 1, limit: 10 }
-  ): Promise<PaginationResult<OrganizationEntityEntity>> {
+  ): Promise<PaginationResult<OrganizationEntity>> {
     return this.findWithFilters({
       ...filters,
       number_of_employees_min: minEmployees,
@@ -140,7 +142,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
     maxRevenue: number,
     filters: Partial<OrganizationEntityFilter> = {},
     pagination: PaginationOptions = { page: 1, limit: 10 }
-  ): Promise<PaginationResult<OrganizationEntityEntity>> {
+  ): Promise<PaginationResult<OrganizationEntity>> {
     return this.findWithFilters({
       ...filters,
       annual_revenue_min: minRevenue,
@@ -152,7 +154,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
     employeeThreshold: number = 1000,
     filters: Partial<OrganizationEntityFilter> = {},
     pagination: PaginationOptions = { page: 1, limit: 10 }
-  ): Promise<PaginationResult<OrganizationEntityEntity>> {
+  ): Promise<PaginationResult<OrganizationEntity>> {
     return this.findWithFilters({
       ...filters,
       number_of_employees_min: employeeThreshold
@@ -163,7 +165,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
     revenueThreshold: number = 10000000, // 10M
     filters: Partial<OrganizationEntityFilter> = {},
     pagination: PaginationOptions = { page: 1, limit: 10 }
-  ): Promise<PaginationResult<OrganizationEntityEntity>> {
+  ): Promise<PaginationResult<OrganizationEntity>> {
     return this.findWithFilters({
       ...filters,
       annual_revenue_min: revenueThreshold
@@ -173,14 +175,14 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
   async findPublicCompanies(
     filters: Partial<OrganizationEntityFilter> = {},
     pagination: PaginationOptions = { page: 1, limit: 10 }
-  ): Promise<PaginationResult<OrganizationEntityEntity>> {
+  ): Promise<PaginationResult<OrganizationEntity>> {
     return this.findWithFilters({ ...filters, legal_structure: 'public' }, pagination);
   }
 
   async findNonProfitOrganizations(
     filters: Partial<OrganizationEntityFilter> = {},
     pagination: PaginationOptions = { page: 1, limit: 10 }
-  ): Promise<PaginationResult<OrganizationEntityEntity>> {
+  ): Promise<PaginationResult<OrganizationEntity>> {
     return this.findWithFilters({ ...filters, organization_type: 'non_profit' }, pagination);
   }
 
@@ -189,7 +191,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
     contactEmail: string,
     contactPhone: string
   ): Promise<void> {
-    const updateData: Partial<OrganizationEntityEntity> = {
+    const updateData: Partial<OrganizationEntity> = {
       contact_email: contactEmail,
       contact_phone: contactPhone,
       updated_at: new Date()
@@ -203,7 +205,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
     annualRevenue?: number,
     industrySector?: string
   ): Promise<void> {
-    const updateData: Partial<OrganizationEntityEntity> = {
+    const updateData: Partial<OrganizationEntity> = {
       updated_at: new Date()
     };
 
@@ -212,7 +214,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
     }
 
     if (annualRevenue !== undefined) {
-      updateData.annual_revenue = annualRevenue;
+      updateData.annual_revenue = annualRevenue.toString();
     }
 
     if (industrySector !== undefined) {
@@ -227,7 +229,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
     registeredAddress?: string,
     operatingAddress?: string
   ): Promise<void> {
-    const updateData: Partial<OrganizationEntityEntity> = {
+    const updateData: Partial<OrganizationEntity> = {
       updated_at: new Date()
     };
 
@@ -313,16 +315,16 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
 
     // Calculate size categories
     const [small, medium, large] = await Promise.all([
-      this.findByEmployeeRange(0, 49, {}, { page: 1, limit: 1 }).then(result => result.total),
-      this.findByEmployeeRange(50, 500, {}, { page: 1, limit: 1 }).then(result => result.total),
-      this.findByEmployeeRange(501, Number.MAX_SAFE_INTEGER, {}, { page: 1, limit: 1 }).then(result => result.total)
+      this.findByEmployeeRange(0, 49, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items),
+      this.findByEmployeeRange(50, 500, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items),
+      this.findByEmployeeRange(501, Number.MAX_SAFE_INTEGER, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items)
     ]);
 
     // Calculate revenue categories
     const [lowRevenue, mediumRevenue, highRevenue] = await Promise.all([
-      this.findByRevenueRange(0, 999999, {}, { page: 1, limit: 1 }).then(result => result.total),
-      this.findByRevenueRange(1000000, 9999999, {}, { page: 1, limit: 1 }).then(result => result.total),
-      this.findByRevenueRange(10000000, Number.MAX_SAFE_INTEGER, {}, { page: 1, limit: 1 }).then(result => result.total)
+      this.findByRevenueRange(0, 999999, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items),
+      this.findByRevenueRange(1000000, 9999999, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items),
+      this.findByRevenueRange(10000000, Number.MAX_SAFE_INTEGER, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items)
     ]);
 
     // Get country and industry distributions
@@ -394,7 +396,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
     };
   }
 
-  private createFilteredQuery(filters: OrganizationEntityFilter): SelectQueryBuilder<OrganizationEntityEntity> {
+  private createFilteredQuery(filters: OrganizationEntityFilter): SelectQueryBuilder<OrganizationEntity> {
     const queryBuilder = this.organizationEntityRepository
       .createQueryBuilder('organization')
       .leftJoinAndSelect('organization.entity', 'entity')

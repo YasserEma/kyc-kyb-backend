@@ -57,6 +57,46 @@ export class EmailService {
     }
   }
 
+  async sendNewUserInvitation(email: string, fullName: string, temporaryPassword: string): Promise<void> {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    const loginUrl = `${frontendUrl}/login`;
+
+    const mailOptions = {
+      from: this.configService.get<string>('NODEMAILER_EMAIL'),
+      to: email,
+      subject: `Your KYC Platform Account Invitation`,
+      html: this.getInvitationTemplate(fullName, loginUrl, temporaryPassword),
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      this.logger.log(`Invitation email sent to ${email}`);
+    } catch (error) {
+      this.logger.error(`Failed to send invitation email to ${email}`, error);
+      throw error;
+    }
+  }
+
+  async sendAdminPasswordChange(email: string, fullName: string, newPassword: string): Promise<void> {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    const loginUrl = `${frontendUrl}/login`;
+
+    const mailOptions = {
+      from: this.configService.get<string>('NODEMAILER_EMAIL'),
+      to: email,
+      subject: `Your Password Has Been Updated`,
+      html: this.getAdminPasswordChangeTemplate(fullName, loginUrl, newPassword),
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      this.logger.log(`Admin password change email sent to ${email}`);
+    } catch (error) {
+      this.logger.error(`Failed to send admin password change email to ${email}`, error);
+      throw error;
+    }
+  }
+
   private getPasswordResetTemplate(resetUrl: string): string {
     return `
       <!DOCTYPE html>
@@ -165,6 +205,86 @@ export class EmailService {
           <div class="footer">
             <p>This is an automated message. Please do not reply to this email.</p>
             <p>© 2025 KYC Platform. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  private getInvitationTemplate(fullName: string, loginUrl: string, temporaryPassword: string): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset=\"utf-8\">
+        <title>Your KYC Platform Account</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #0069d9; padding: 20px; text-align: center; color: white; }
+          .content { padding: 20px; }
+          .button { display: inline-block; padding: 12px 24px; background-color: #0069d9; color: white; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+          .footer { background-color: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666; }
+          .code { font-family: monospace; background: #f1f3f5; padding: 8px 12px; border-radius: 4px; }
+        </style>
+      </head>
+      <body>
+        <div class=\"container\">
+          <div class=\"header\">
+            <h1>Welcome to KYC Platform</h1>
+          </div>
+          <div class=\"content\">
+            <p>Hello <strong>${fullName}</strong>,</p>
+            <p>Your administrator has created an account for you on the KYC Platform.</p>
+            <p>Use the temporary password below to sign in and set your own password:</p>
+            <p class=\"code\">${temporaryPassword}</p>
+            <p style=\"text-align: center;\"><a href=\"${loginUrl}\" class=\"button\">Login to Dashboard</a></p>
+            <p>For security, please change your password after your first login.</p>
+            <p>Best regards,<br>The KYC Platform Team</p>
+          </div>
+          <div class=\"footer\">
+            <p>This is an automated message. Please do not reply to this email.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  private getAdminPasswordChangeTemplate(fullName: string, loginUrl: string, newPassword: string): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset=\"utf-8\">
+        <title>Password Updated</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #17a2b8; padding: 20px; text-align: center; color: white; }
+          .content { padding: 20px; }
+          .button { display: inline-block; padding: 12px 24px; background-color: #17a2b8; color: white; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+          .footer { background-color: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666; }
+          .code { font-family: monospace; background: #f1f3f5; padding: 8px 12px; border-radius: 4px; }
+        </style>
+      </head>
+      <body>
+        <div class=\"container\">
+          <div class=\"header\">
+            <h1>Password Updated</h1>
+          </div>
+          <div class=\"content\">
+            <p>Hello <strong>${fullName}</strong>,</p>
+            <p>An administrator has updated your account password.</p>
+            <p>Your new password is:</p>
+            <p class=\"code\">${newPassword}</p>
+            <p style=\"text-align: center;\"><a href=\"${loginUrl}\" class=\"button\">Login to Dashboard</a></p>
+            <p>For security, please change your password after login.</p>
+            <p>Best regards,<br>The KYC Platform Team</p>
+          </div>
+          <div class=\"footer\">
+            <p>This is an automated message. Please do not reply to this email.</p>
           </div>
         </div>
       </body>

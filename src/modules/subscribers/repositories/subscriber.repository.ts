@@ -52,6 +52,30 @@ export class SubscriberRepository extends BaseRepository<SubscriberEntity> {
   }
 
   /**
+   * Find subscriber by username
+   */
+  async findByUsername(username: string): Promise<SubscriberEntity | null> {
+    if (!username) {
+      return null;
+    }
+    return this.subscriberRepository.findOne({
+      where: { username }
+    });
+  }
+
+  /**
+   * Find subscriber by email
+   */
+  async findByEmail(email: string): Promise<SubscriberEntity | null> {
+    if (!email) {
+      return null;
+    }
+    return this.subscriberRepository.findOne({
+      where: { email: email.toLowerCase() }
+    });
+  }
+
+  /**
    * Find subscribers by subscription tier
    */
   async findBySubscriptionTier(tier: 'basic' | 'premium' | 'enterprise'): Promise<SubscriberEntity[]> {

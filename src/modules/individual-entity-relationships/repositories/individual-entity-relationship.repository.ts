@@ -35,6 +35,7 @@ export interface IndividualEntityRelationshipFilter extends BaseFilter {
   end_date_to?: Date;
   ownership_percentage_min?: number;
   ownership_percentage_max?: number;
+  search?: string;
 }
 
 @Injectable()
@@ -283,7 +284,8 @@ export class IndividualEntityRelationshipRepository extends BaseRepository<Indiv
     };
 
     const result = await this.update(relationshipId, updateData);
-    return result.affected > 0;
+    const affected = result.affected ?? 0;
+    return affected > 0;
   }
 
   async updateReviewDate(
@@ -299,7 +301,8 @@ export class IndividualEntityRelationshipRepository extends BaseRepository<Indiv
     };
 
     const result = await this.update(relationshipId, updateData);
-    return result.affected > 0;
+    const affected = result.affected ?? 0;
+    return affected > 0;
   }
 
   async updateRiskLevel(
@@ -316,7 +319,8 @@ export class IndividualEntityRelationshipRepository extends BaseRepository<Indiv
     };
 
     const result = await this.update(relationshipId, updateData);
-    return result.affected > 0;
+    const affected = result.affected ?? 0;
+    return affected > 0;
   }
 
   async getRelationshipStatistics(individualId?: string): Promise<{

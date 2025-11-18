@@ -3,6 +3,7 @@ import { BaseEntity } from '../../common/entities/base.entity';
 import { EntityEntity } from './entity.entity';
 import { OrganizationEntityAssociationEntity } from '../../organization-entity-associations/entities/organization-entity-association.entity';
 import { IndividualEntityRelationshipEntity } from '../../individual-entity-relationships/entities/individual-entity-relationship.entity';
+import { IndividualIdentityDocumentEntity } from '../../individual-identity-documents/individual-identity-document.entity';
 
 @Entity('individual_entities')
 export class IndividualEntity extends BaseEntity {
@@ -32,16 +33,8 @@ export class IndividualEntity extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   occupation?: string;
 
-  @Column({ type: 'text', nullable: true })
-  national_id?: string;
-
-  @Index('idx_individual_entities_id_type')
-  @Column({ type: 'text', nullable: true })
-  id_type?: string;
-
-  @Index('idx_individual_entities_id_expiry_date')
-  @Column({ type: 'date', nullable: true })
-  id_expiry_date?: Date;
+  @OneToMany(() => IndividualIdentityDocumentEntity, (doc) => doc.individual)
+  identity_documents?: IndividualIdentityDocumentEntity[];
 
   @Column({ type: 'text', nullable: true })
   source_of_income?: string;

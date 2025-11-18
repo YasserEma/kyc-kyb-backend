@@ -3,7 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder , IsNull} from 'typeorm';
 import { BaseRepository } from '../../common/repositories/base.repository';
 import { IndividualEntity } from '../entities/individual-entity.entity';
-import { PaginationOptions, PaginationResult } from '../../../utils/database/pagination.helper';
+import { PaginationOptions, PaginationResult } from '../../common/interfaces/pagination.interface';
+import { QueryHelper } from '../../../utils/database/query.helper';
 import { BaseFilter } from '../../common/interfaces/filter.interface';
 
 export interface IndividualEntityFilter extends BaseFilter {
@@ -19,6 +20,7 @@ export interface IndividualEntityFilter extends BaseFilter {
   date_of_birth_to?: Date;
   id_expiry_from?: Date;
   id_expiry_to?: Date;
+  search?: string;
 }
 
 @Injectable()
@@ -35,7 +37,7 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
     pagination: PaginationOptions = { page: 1, limit: 10 }
   ): Promise<PaginationResult<IndividualEntity>> {
     const queryBuilder = this.createFilteredQuery(filters);
-    return this.paginate(queryBuilder, pagination);
+    return QueryHelper.buildPaginationResult(queryBuilder, pagination);
   }
 
   async findByEntityId(entityId: string): Promise<IndividualEntity | null> {
@@ -113,11 +115,11 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
     expiryThreshold.setDate(expiryThreshold.getDate() + daysAhead);
     
     queryBuilder.andWhere(
-      'individual.id_expiry_date IS NOT NULL AND individual.id_expiry_date <= :expiryThreshold',
+      'idoc.expiry_date IS NOT NULL AND idoc.expiry_date <= :expiryThreshold',
       { expiryThreshold }
     );
     
-    return this.paginate(queryBuilder, pagination);
+    return QueryHelper.buildPaginationResult(queryBuilder, pagination);
   }
 
   async findByAgeRange(
@@ -136,7 +138,7 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
       { minBirthDate, maxBirthDate }
     );
     
-    return this.paginate(queryBuilder, pagination);
+    return QueryHelper.buildPaginationResult(queryBuilder, pagination);
   }
 
   async updatePEPStatus(entityId: string, isPep: boolean, pepDetails?: string): Promise<void> {
@@ -161,20 +163,8 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
     await this.individualEntityRepository.update({ entity_id: entityId }, updateData);
   }
 
-  async updateIdInformation(
-    entityId: string,
-    idType: 'passport' | 'national_id' | 'drivers_license' | 'other',
-    nationalId: string,
-    idExpiryDate?: Date
-  ): Promise<void> {
-    const updateData: Partial<IndividualEntity> = {
-      id_type: idType,
-      national_id: nationalId,
-      id_expiry_date: idExpiryDate,
-      updated_at: new Date()
-    };
-    await this.individualEntityRepository.update({ entity_id: entityId }, updateData);
-  }
+  // Legacy identity fields have been moved to IndividualIdentityDocumentEntity.
+  // Any updates to identity information should be performed via the identity documents module/service.
 
   async getIndividualStatistics(): Promise<{
     total: number;
@@ -208,25 +198,53 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
       this.individualEntityRepository.count({ where: { ...baseWhere, gender: 'prefer_not_to_say' } }),
       this.individualEntityRepository.count({ where: { ...baseWhere, is_pep: true } }),
       this.individualEntityRepository.count({ where: { ...baseWhere, has_criminal_record: true } }),
-      this.individualEntityRepository.count({ where: { ...baseWhere, id_type: 'passport' } }),
-      this.individualEntityRepository.count({ where: { ...baseWhere, id_type: 'national_id' } }),
-      this.individualEntityRepository.count({ where: { ...baseWhere, id_type: 'drivers_license' } }),
-      this.individualEntityRepository.count({ where: { ...baseWhere, id_type: 'other' } })
+      this.individualEntityRepository
+        .createQueryBuilder('individual')
+        .leftJoin('individual.identity_documents', 'idoc')
+        .where('individual.is_active = true AND individual.deleted_at IS NULL')
+        .andWhere('idoc.id_type = :type', { type: 'passport' })
+        .select('COUNT(DISTINCT individual.id)', 'count')
+        .getRawOne()
+        .then(r => Number(r?.count ?? 0)),
+      this.individualEntityRepository
+        .createQueryBuilder('individual')
+        .leftJoin('individual.identity_documents', 'idoc')
+        .where('individual.is_active = true AND individual.deleted_at IS NULL')
+        .andWhere('idoc.id_type = :type', { type: 'national_id' })
+        .select('COUNT(DISTINCT individual.id)', 'count')
+        .getRawOne()
+        .then(r => Number(r?.count ?? 0)),
+      this.individualEntityRepository
+        .createQueryBuilder('individual')
+        .leftJoin('individual.identity_documents', 'idoc')
+        .where('individual.is_active = true AND individual.deleted_at IS NULL')
+        .andWhere('idoc.id_type = :type', { type: 'drivers_license' })
+        .select('COUNT(DISTINCT individual.id)', 'count')
+        .getRawOne()
+        .then(r => Number(r?.count ?? 0)),
+      this.individualEntityRepository
+        .createQueryBuilder('individual')
+        .leftJoin('individual.identity_documents', 'idoc')
+        .where('individual.is_active = true AND individual.deleted_at IS NULL')
+        .andWhere('idoc.id_type = :type', { type: 'other' })
+        .select('COUNT(DISTINCT individual.id)', 'count')
+        .getRawOne()
+        .then(r => Number(r?.count ?? 0)),
     ]);
 
     // Calculate age groups
     const currentDate = new Date();
     const ageGroups = await Promise.all([
-      this.findByAgeRange(0, 24, {}, { page: 1, limit: 1 }).then(result => result.total),
-      this.findByAgeRange(25, 40, {}, { page: 1, limit: 1 }).then(result => result.total),
-      this.findByAgeRange(41, 60, {}, { page: 1, limit: 1 }).then(result => result.total),
-      this.findByAgeRange(61, 120, {}, { page: 1, limit: 1 }).then(result => result.total)
+      this.findByAgeRange(0, 24, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items),
+      this.findByAgeRange(25, 40, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items),
+      this.findByAgeRange(41, 60, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items),
+      this.findByAgeRange(61, 120, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items)
     ]);
 
     // Calculate expiring IDs
     const [expiringIds30Days, expiringIds90Days] = await Promise.all([
-      this.findWithExpiringIds(30, {}, { page: 1, limit: 1 }).then(result => result.total),
-      this.findWithExpiringIds(90, {}, { page: 1, limit: 1 }).then(result => result.total)
+      this.findWithExpiringIds(30, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items),
+      this.findWithExpiringIds(90, {}, { page: 1, limit: 1 }).then(result => result.pagination.total_items)
     ]);
 
     return {
@@ -261,6 +279,8 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
       .createQueryBuilder('individual')
       .leftJoinAndSelect('individual.entity', 'entity')
       .leftJoinAndSelect('entity.subscriber', 'subscriber')
+      .leftJoin('individual.identity_documents', 'idoc')
+      .distinct(true)
       .where('individual.is_active = :isActive', { isActive: true })
       .andWhere('individual.deleted_at IS NULL');
 
@@ -287,7 +307,7 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
     }
 
     if (filters.id_type) {
-      queryBuilder.andWhere('individual.id_type = :idType', { idType: filters.id_type });
+      queryBuilder.andWhere('idoc.id_type = :idType', { idType: filters.id_type });
     }
 
     if (filters.is_pep !== undefined) {
@@ -313,15 +333,11 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
     }
 
     if (filters.id_expiry_from) {
-      queryBuilder.andWhere('individual.id_expiry_date >= :idExpiryFrom', { 
-        idExpiryFrom: filters.id_expiry_from 
-      });
+      queryBuilder.andWhere('idoc.expiry_date >= :idExpiryFrom', { idExpiryFrom: filters.id_expiry_from });
     }
 
     if (filters.id_expiry_to) {
-      queryBuilder.andWhere('individual.id_expiry_date <= :idExpiryTo', { 
-        idExpiryTo: filters.id_expiry_to 
-      });
+      queryBuilder.andWhere('idoc.expiry_date <= :idExpiryTo', { idExpiryTo: filters.id_expiry_to });
     }
 
     if (filters.search) {
