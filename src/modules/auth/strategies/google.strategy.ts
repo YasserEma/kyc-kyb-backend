@@ -6,30 +6,28 @@ import { GoogleProfile } from '../interfaces/token-payload.interface';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
-  constructor(private configService: ConfigService) {
+  constructor(private readonly configService: ConfigService) {
     super({
-      clientID: configService.get<string>('GOOGLE_CLIENT_ID') || 'default-client-id',
-      clientSecret: configService.get<string>('GOOGLE_CLIENT_SECRET') || 'default-client-secret',
-      callbackURL: configService.get<string>('GOOGLE_CALLBACK_URL') || 'http://localhost:3001/api/v1/auth/google/callback',
+      clientID: configService.get<string>('GOOGLE_OAUTH_CLIENT_ID'),
+      clientSecret: configService.get<string>('GOOGLE_OAUTH_CLIENT_SECRET'),
+      callbackURL: configService.get<string>('GOOGLE_OAUTH_CALLBACK_URL'),
       scope: ['email', 'profile'],
     });
   }
 
   async validate(
-    accessToken: string,
-    refreshToken: string,
+    _accessToken: string,
+    _refreshToken: string,
     profile: any,
     done: VerifyCallback,
   ): Promise<any> {
-    const { name, emails, id } = profile;
-    
+    const { id, name, emails } = profile;
     const user: GoogleProfile = {
+      googleId: id,
       email: emails[0].value,
       firstName: name.givenName,
       lastName: name.familyName,
-      googleId: id,
     };
-
     done(null, user);
   }
 }
