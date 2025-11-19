@@ -33,7 +33,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import {
   RegisterResponseDto,
   LoginResponseDto,
-  RefreshResponseDto,
+  RefreshTokenResponseDto,
   MessageResponseDto,
   ErrorResponseDto,
 } from './dto/auth-response.dto';
@@ -149,7 +149,7 @@ export class AuthController {
     type: ErrorResponseDto,
   })
   async login(@Body() loginDto: LoginDto): Promise<LoginResponseDto> {
-    this.logger.log(`Login attempt for email: ${loginDto.username}`);
+    this.logger.log(`Login attempt for email: ${loginDto.email}`);
     return this.authService.login(loginDto);
   }
 
@@ -166,7 +166,7 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'Token refreshed successfully',
-    type: RefreshResponseDto,
+    type: RefreshTokenResponseDto,
   })
   @ApiResponse({
     status: 401,
@@ -178,7 +178,7 @@ export class AuthController {
     description: 'Too many requests',
     type: ErrorResponseDto,
   })
-  async refreshToken(@Body() refreshDto: RefreshTokenDto): Promise<RefreshResponseDto> {
+  async refreshToken(@Body() refreshDto: RefreshTokenDto): Promise<RefreshTokenResponseDto> {
     this.logger.log('Token refresh attempt');
     return this.authService.refreshToken(refreshDto);
   }

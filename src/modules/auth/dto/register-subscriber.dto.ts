@@ -18,6 +18,21 @@ export class RegisterSubscriberDto {
   @IsNotEmpty()
   companyAddress: string;
 
+  @ApiProperty({ example: 'FINTECH' })
+  @IsString()
+  @IsNotEmpty()
+  companyType: string;
+
+  @ApiProperty({ example: '+1-222-333-4444' })
+  @IsString()
+  @IsNotEmpty()
+  companyContactPhone: string;
+
+  @ApiProperty({ example: 'US' })
+  @IsString()
+  @IsNotEmpty()
+  jurisdiction: string;
+
   @ApiProperty({ example: 'John Doe' })
   @IsString()
   @IsNotEmpty()

@@ -1,10 +1,10 @@
-import { UserRole } from 'src/modules/user/enums/user-role.enum';
+export type UserRole = 'admin' | 'manager' | 'analyst' | 'viewer';
 
 export interface TokenPayload {
-  userId: number;
+  sub: string;
   email: string;
   role: UserRole;
-  subscriberId: number;
+  subscriberId: string;
 }
 
 export interface GoogleProfile {

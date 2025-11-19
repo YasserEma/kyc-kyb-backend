@@ -66,26 +66,9 @@ export class EntitiesService {
   }
 
   async getEntityDetails(subscriberId: string, entityId: string) {
-    const [entity] = await this.entityRepository.findAndCount({
-      where: {
-        id: entityId,
-        subscriber_id: subscriberId,
-        is_active: true,
-      },
-      relations: ['subscriber'],
-    });
-
-    if (!Array.isArray(entity) || !entity[0]) {
-      // findAndCount returns [entities, count]; use direct findOne for clarity
-      const found = await this.entityRepository.findOne({
-        where: { id: entityId, subscriber_id: subscriberId, is_active: true },
-        relations: ['subscriber'],
-      });
-      if (!found) throw new NotFoundException('Entity not found');
-      return found;
-    }
-
-    return (entity as any)[0];
+    const entity = await this.entityRepository.findDetailsById(subscriberId, entityId);
+    if (!entity) throw new NotFoundException('Entity not found');
+    return entity;
   }
 
   async createIndividualEntity(subscriberId: string, userId: string, dto: CreateIndividualEntityDto) {

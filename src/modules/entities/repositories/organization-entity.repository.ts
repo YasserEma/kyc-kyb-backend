@@ -50,7 +50,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
         is_active: true,
         deleted_at: IsNull()
       },
-      relations: ['entity', 'entity.subscriber']
+      relations: ['entity']
     });
   }
 
@@ -109,7 +109,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
         is_active: true,
         deleted_at: IsNull()
       },
-      relations: ['entity', 'entity.subscriber']
+      relations: ['entity']
     });
   }
 
@@ -120,7 +120,7 @@ export class OrganizationEntityRepository extends BaseRepository<OrganizationEnt
         is_active: true,
         deleted_at: IsNull()
       },
-      relations: ['entity', 'entity.subscriber']
+      relations: ['entity']
     });
   }
 

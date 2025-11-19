@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder , IsNull} from 'typeorm';
+import { Repository, SelectQueryBuilder , IsNull, Brackets } from 'typeorm';
 import { BaseRepository } from '../../common/repositories/base.repository';
 import { EntityEntity } from '../entities/entity.entity';
 import { IndividualEntity } from '../entities/individual-entity.entity';
@@ -58,6 +58,29 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
       // Only load existing relations; inverse relations to individual/organization are not defined
       relations: ['subscriber']
     });
+  }
+
+  async findDetailsById(subscriberId: string, entityId: string): Promise<EntityEntity | null> {
+    const qb = this.entityRepository
+      .createQueryBuilder('entity')
+      .leftJoinAndMapOne(
+        'entity.individual',
+        IndividualEntity,
+        'individualEntity',
+        "individualEntity.entity_id = entity.id AND entity.entity_type = 'individual'"
+      )
+      .leftJoinAndMapOne(
+        'entity.organization',
+        OrganizationEntity,
+        'organizationEntity',
+        "organizationEntity.entity_id = entity.id AND entity.entity_type = 'organization'"
+      )
+      .where('entity.id = :entityId', { entityId })
+      .andWhere('entity.subscriber_id = :subscriberId', { subscriberId })
+      .andWhere('entity.is_active = true')
+      .andWhere('entity.deleted_at IS NULL');
+
+    return qb.getOne();
   }
 
   async findByEntityType(
@@ -241,10 +264,18 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
   private createFilteredQuery(filters: EntityFilter): SelectQueryBuilder<EntityEntity> {
     const queryBuilder = this.entityRepository
       .createQueryBuilder('entity')
-      .leftJoinAndSelect('entity.subscriber', 'subscriber')
-      // Join related tables by foreign key instead of non-existent inverse relations
-      .leftJoin(IndividualEntity, 'individualEntity', 'individualEntity.entity_id = entity.id')
-      .leftJoin(OrganizationEntity, 'organizationEntity', 'organizationEntity.entity_id = entity.id')
+      .leftJoinAndMapOne(
+        'entity.individual',
+        IndividualEntity,
+        'individualEntity',
+        "individualEntity.entity_id = entity.id AND entity.entity_type = 'individual'"
+      )
+      .leftJoinAndMapOne(
+        'entity.organization',
+        OrganizationEntity,
+        'organizationEntity',
+        "organizationEntity.entity_id = entity.id AND entity.entity_type = 'organization'"
+      )
       .where('entity.is_active = :isActive', { isActive: true })
       .andWhere('entity.deleted_at IS NULL');
 
@@ -289,9 +320,22 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
     }
 
     if (filters.search) {
+      const searchTerm = `%${filters.search}%`;
       queryBuilder.andWhere(
-        '(entity.name ILIKE :search OR entity.reference_number ILIKE :search)',
-        { search: `%${filters.search}%` }
+        new Brackets((qb) => {
+          qb.where('entity.name ILIKE :searchTerm', { searchTerm })
+            .orWhere('entity.reference_number ILIKE :searchTerm', { searchTerm })
+            .orWhere('individualEntity.gender ILIKE :searchTerm', { searchTerm })
+            .orWhere('individualEntity.address ILIKE :searchTerm', { searchTerm })
+            .orWhere('individualEntity.occupation ILIKE :searchTerm', { searchTerm })
+            .orWhere('individualEntity.source_of_income ILIKE :searchTerm', { searchTerm })
+            .orWhere("individualEntity.nationality::text ILIKE :searchTerm", { searchTerm })
+            .orWhere("individualEntity.country_of_residence::text ILIKE :searchTerm", { searchTerm })
+            .orWhere('organizationEntity.legal_name ILIKE :searchTerm', { searchTerm })
+            .orWhere('organizationEntity.trade_name ILIKE :searchTerm', { searchTerm })
+            .orWhere('organizationEntity.tax_identification_number ILIKE :searchTerm', { searchTerm })
+            .orWhere('organizationEntity.commercial_registration_number ILIKE :searchTerm', { searchTerm });
+        })
       );
     }
 
