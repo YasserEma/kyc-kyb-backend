@@ -11,7 +11,7 @@ import { EntityCustomFieldRepository } from '../../entity-custom-fields/reposito
 import { ScreeningAnalysisRepository } from '../../screening-analysis/repositories/screening-analysis.repository';
 import { RiskAnalysisRepository } from '../../risk-analysis/repositories/risk-analysis.repository';
 import { DocumentRepository } from '../../documents/repositories/document.repository';
-import { DocumentsService } from '../../documents/documents.service';
+import { DocumentConfigurationRepository } from '../../document-configurations/repositories/document-configuration.repository';
 import { IndividualIdentityDocumentRepository } from '../../individual-identity-documents/individual-identity-document.repository';
 import { OrganizationEntityAssociationRepository } from '../../organization-entity-associations/repositories/organization-entity-association.repository';
 import { EncryptionHelper } from '../../../utils/database/encryption.helper';
@@ -38,9 +38,9 @@ export class EntitiesService {
     private readonly screeningAnalysisRepository: ScreeningAnalysisRepository,
     private readonly riskAnalysisRepository: RiskAnalysisRepository,
     private readonly documentRepository: DocumentRepository,
+    private readonly documentConfigurationRepository: DocumentConfigurationRepository,
     private readonly identityDocumentRepository: IndividualIdentityDocumentRepository,
     private readonly organizationEntityAssociationRepository: OrganizationEntityAssociationRepository,
-    private readonly documentsService: DocumentsService,
     private readonly configService: ConfigService,
     private readonly storageService: LocalStorageService,
   ) {}
@@ -523,8 +523,9 @@ export class EntitiesService {
         const fieldRecord = this.entityCustomFieldRepository.create({
           entity_id: entityId,
           field_name: field.field_name,
-          field_type: 'text',
+          field_type: field.field_type || 'text',
           field_value: field.field_value,
+          field_value_json: field.field_value_json,
           field_group: field.field_group,
           is_required: false,
           is_searchable: true,
@@ -551,67 +552,6 @@ export class EntitiesService {
       );
 
       return { added: addedFields.length, fields: addedFields };
-    });
-  }
-
-  async addDocument(subscriberId: string, entityId: string, userId: string, dto: any, file?: Express.Multer.File) {
-    return this.dataSource.transaction(async manager => {
-      const entityRepo = manager.getRepository((this.entityRepository as any).repository.target);
-      const entity = await entityRepo.findOne({ where: { id: entityId, is_active: true } });
-      if (!entity) throw new NotFoundException('Entity not found');
-
-      let fileKey = '';
-      let fileName = '';
-      let fileExtension = '';
-      let mimeType = dto.mime_type || 'application/octet-stream';
-      let fileSize = 0;
-
-      if (file) {
-        fileKey = await this.storageService.uploadFile(file);
-        const path = require('path');
-        fileName = path.basename(fileKey);
-        fileExtension = (path.extname(file.originalname) || '').replace('.', '').toLowerCase();
-        mimeType = file.mimetype || mimeType;
-        fileSize = file.size || 0;
-      }
-
-      const docRepo = manager.getRepository((this.documentRepository as any).repository.target);
-      const doc = this.documentRepository.create({
-        entity_id: entityId,
-        subscriber_id: subscriberId,
-        document_name: dto.document_name,
-        document_type: dto.document_type,
-        file_path: fileKey || '/tmp/placeholder',
-        storage_path: fileKey || null,
-        file_name: fileName || dto.document_name,
-        original_file_name: file ? file.originalname : dto.document_name,
-        file_extension: fileExtension,
-        mime_type: mimeType,
-        file_size: fileSize,
-        issue_date: dto.issue_date ? new Date(dto.issue_date) : undefined,
-        expiry_date: dto.expiry_date ? new Date(dto.expiry_date) : undefined,
-        issuing_authority: dto.issuing_authority,
-        issuing_country: dto.issuing_country,
-        document_number: dto.document_number,
-        uploaded_by: userId,
-        is_active: true,
-        document_status: 'uploaded',
-        verification_status: 'pending',
-      } as any);
-
-      const saved = await docRepo.save(doc);
-
-      await manager.getRepository((this.entityHistoryRepository as any).repository.target).save(
-        this.entityHistoryRepository.create({
-          entity_id: entityId,
-          changed_by: userId,
-          change_type: 'updated',
-          change_description: `Document added: ${dto.document_name}`,
-          new_values: { document: { id: saved.id, name: saved.document_name, type: saved.document_type } },
-        })
-      );
-
-      return saved;
     });
   }
 }

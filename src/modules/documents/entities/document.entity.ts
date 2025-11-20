@@ -154,6 +154,12 @@ export class DocumentEntity extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   tags: string;
 
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  category: string;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  section: string;
+
   @Column({ type: 'uuid', nullable: true })
   uploaded_by: string;
 

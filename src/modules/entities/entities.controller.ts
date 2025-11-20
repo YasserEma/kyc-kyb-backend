@@ -13,7 +13,7 @@ import { UpdateEntityDto } from './dtos/update-entity.dto';
 import { UpdateEntityStatusDto } from './dtos/update-entity-status.dto';
 import { BulkActionDto } from './dtos/bulk-action.dto';
 import { ExportEntitiesDto } from './dtos/export-entities.dto';
-import { AddDocumentDto } from './dtos/add-document.dto';
+
 import { AddCustomFieldsDto } from './dtos/add-custom-fields.dto';
 
 @ApiTags('Entities')
@@ -84,24 +84,6 @@ export class EntitiesController {
   async createOrganizationEntity(@Req() req: Request, @Body() dto: CreateOrganizationEntityDto) {
     const payload = req.user as any;
     return this.entitiesService.createOrganizationEntity(payload.subscriberId, payload.sub, dto);
-  }
-
-  @Post(':entity_id/documents')
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'manager')
-  @ApiOperation({ summary: 'Add document to entity' })
-  @ApiParam({ name: 'entity_id', required: true })
-  @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiResponse({ status: 201, description: 'Document added successfully' })
-  async addDocument(
-    @Req() req: Request,
-    @Param('entity_id') entityId: string,
-    @UploadedFile() file: Express.Multer.File,
-    @Body() dto: AddDocumentDto
-  ) {
-    const payload = req.user as any;
-    return this.entitiesService.addDocument(payload.subscriberId, entityId, payload.sub, dto, file);
   }
 
   @Post(':entity_id/custom-fields')

@@ -8,6 +8,7 @@ import appConfig from './config/app.config';
 import { validateEnv } from './config/validation.schema';
 import { AuthModule } from './modules/auth/auth.module';
 import { EntitiesModule } from './modules/entities/entities.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 import { OrganizationRelationshipsModule } from './modules/organization-relationships/organization-relationships.module';
 import { OrganizationEntityAssociationsModule } from './modules/organization-entity-associations/organization-entity-associations.module';
 import { DocumentConfigurationsModule } from './modules/document-configurations/document-configurations.module';
@@ -53,6 +54,7 @@ const typeOrmImports = shouldInitDb
     ...typeOrmImports,
     AuthModule,
     EntitiesModule,
+    DocumentsModule,
     OrganizationRelationshipsModule,
     OrganizationEntityAssociationsModule,
     DocumentConfigurationsModule,

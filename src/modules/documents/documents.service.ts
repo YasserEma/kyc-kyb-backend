@@ -133,7 +133,7 @@ export class DocumentsService {
     entityId: string,
     subscriberId: string,
     userId: string,
-    dto: { document_configuration_id: string; expiry_date?: string },
+    dto: { document_configuration_id: string; name?: string; description?: string; expiry_date?: string },
     file: Express.Multer.File,
   ) {
     if (!file) throw new BadRequestException('File is required');
@@ -155,8 +155,9 @@ export class DocumentsService {
     const doc = this.documentRepository.create({
       entity_id: entityId,
       subscriber_id: subscriberId,
-      document_name: config.name,
+      document_name: dto.name || config.name,
       document_type: config.code,
+      document_description: dto.description || null,
       file_path: key,
       storage_path: key,
       file_name: fileName,

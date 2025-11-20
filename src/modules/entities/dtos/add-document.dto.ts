@@ -20,6 +20,11 @@ export class AddDocumentDto {
   @IsDateString()
   expiry_date?: string;
 
+  @ApiPropertyOptional({ description: 'Issuing authority', example: 'Department of State' })
+  @IsOptional()
+  @IsString()
+  issuing_authority?: string;
+
   @ApiPropertyOptional({ description: 'Issuing country code (ISO alpha-2)', example: 'US' })
   @IsOptional()
   @IsString()
@@ -30,15 +35,35 @@ export class AddDocumentDto {
   @IsString()
   file?: string;
 
+  @ApiPropertyOptional({ description: 'Original file name for base64 uploads', example: 'document.pdf' })
+  @IsOptional()
+  @IsString()
+  original_file_name?: string;
+
   @ApiPropertyOptional({ description: 'MIME type', example: 'application/pdf' })
   @IsOptional()
   @IsString()
   mime_type?: string;
 
+  @ApiPropertyOptional({ description: 'Document description', example: 'Customer identification document' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ description: 'Issue date (ISO date)', example: '2023-01-15' })
+  @IsOptional()
+  @IsDateString()
+  issue_date?: string;
+
   @ApiPropertyOptional({ description: 'Document category', example: 'identity' })
   @IsOptional()
   @IsString()
   category?: string;
+
+  @ApiPropertyOptional({ description: 'Document section/group for organization', example: 'compliance_documents' })
+  @IsOptional()
+  @IsString()
+  section?: string;
 
   @ApiPropertyOptional({ description: 'Document tags (comma-separated)', example: 'identity,passport' })
   @IsOptional()
