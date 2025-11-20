@@ -1,7 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { DocumentEntity } from './entities/document.entity';
 import { DocumentRepository } from './repositories/document.repository';
+import { DocumentConfigurationRepository } from '../document-configurations/repositories/document-configuration.repository';
+import { LocalStorageService } from '../common/services/local-storage.service';
+import * as path from 'path';
 
 interface CreateDocumentInput {
   entity_id?: string;
@@ -22,7 +25,11 @@ interface CreateDocumentInput {
 
 @Injectable()
 export class DocumentsService {
-  constructor(private readonly documentRepository: DocumentRepository) {}
+  constructor(
+    private readonly documentRepository: DocumentRepository,
+    private readonly documentConfigRepo: DocumentConfigurationRepository,
+    private readonly storageService: LocalStorageService,
+  ) {}
 
   async createDocument(uploaderId: string, input: CreateDocumentInput) {
     const doc = this.documentRepository.create({
@@ -120,5 +127,51 @@ export class DocumentsService {
       document_type: options?.document_type ?? 'identity',
       mime_type: options?.mime_type ?? 'application/octet-stream',
     });
+  }
+
+  async uploadDocument(
+    entityId: string,
+    subscriberId: string,
+    userId: string,
+    dto: { document_configuration_id: string; expiry_date?: string },
+    file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('File is required');
+    const config = await this.documentConfigRepo.findOne({ where: { id: dto.document_configuration_id, is_active: true } });
+    if (!config) throw new NotFoundException('Document configuration not found');
+
+    const allowed = (config.allowed_extensions || []).map((e) => `${e}`.toLowerCase());
+    const ext = `${path.extname(file.originalname).replace('.', '')}`.toLowerCase();
+    const mime = `${file.mimetype}`.toLowerCase();
+    const matchesExt = allowed.includes(ext);
+    const matchesMime = allowed.some((e) => mime.includes(e));
+    if (!matchesExt && !matchesMime) throw new BadRequestException('File type not allowed');
+    if (file.size > Number(config.max_size_bytes || 0)) throw new BadRequestException('File exceeds max size');
+    if (config.is_expiry_required && !dto.expiry_date) throw new BadRequestException('Expiry date is required');
+
+    const key = await this.storageService.uploadFile(file);
+    const fileName = path.basename(key);
+
+    const doc = this.documentRepository.create({
+      entity_id: entityId,
+      subscriber_id: subscriberId,
+      document_name: config.name,
+      document_type: config.code,
+      file_path: key,
+      storage_path: key,
+      file_name: fileName,
+      original_file_name: file.originalname,
+      file_extension: ext,
+      mime_type: file.mimetype,
+      file_size: file.size,
+      expiry_date: dto.expiry_date ? new Date(dto.expiry_date) : undefined,
+      uploaded_by: userId,
+      document_configuration_id: config.id,
+      is_active: true,
+      document_status: 'uploaded',
+      verification_status: 'pending',
+    } as any);
+
+    return this.documentRepository.save(doc);
   }
 }

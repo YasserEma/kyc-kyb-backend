@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { EntitiesController } from './entities.controller';
+import { DocumentsController } from '../documents/documents.controller';
 import { EntitiesService } from './services/entities.service';
 
 // Entities module entities
@@ -15,6 +16,7 @@ import { EntityCustomFieldEntity } from '../entity-custom-fields/entities/entity
 import { ScreeningAnalysisEntity } from '../screening-analysis/entities/screening-analysis.entity';
 import { RiskAnalysisEntity } from '../risk-analysis/entities/risk-analysis.entity';
 import { DocumentEntity } from '../documents/entities/document.entity';
+import { DocumentConfigurationEntity } from '../document-configurations/entities/document-configuration.entity';
 
 // Repositories
 import { EntityRepository } from './repositories/entity.repository';
@@ -25,11 +27,13 @@ import { EntityCustomFieldRepository } from '../entity-custom-fields/repositorie
 import { ScreeningAnalysisRepository } from '../screening-analysis/repositories/screening-analysis.repository';
 import { RiskAnalysisRepository } from '../risk-analysis/repositories/risk-analysis.repository';
 import { DocumentRepository } from '../documents/repositories/document.repository';
+import { DocumentConfigurationRepository } from '../document-configurations/repositories/document-configuration.repository';
 import { IndividualIdentityDocumentsModule } from '../individual-identity-documents/individual-identity-documents.module';
 import { IndividualRelationshipsModule } from '../individual-entity-relationships/individual-entity-relationships.module';
 import { OrganizationEntityAssociationEntity } from '../organization-entity-associations/entities/organization-entity-association.entity';
 import { OrganizationEntityAssociationRepository } from '../organization-entity-associations/repositories/organization-entity-association.repository';
 import { DocumentsService } from '../documents/documents.service';
+import { LocalStorageService } from '../common/services/local-storage.service';
 
 import { AuthModule } from '../auth/auth.module';
 
@@ -44,13 +48,14 @@ import { AuthModule } from '../auth/auth.module';
       ScreeningAnalysisEntity,
       RiskAnalysisEntity,
       DocumentEntity,
+      DocumentConfigurationEntity,
       OrganizationEntityAssociationEntity,
     ]),
     IndividualIdentityDocumentsModule,
     IndividualRelationshipsModule,
     forwardRef(() => AuthModule),
   ],
-  controllers: [EntitiesController],
+  controllers: [EntitiesController, DocumentsController],
   providers: [
     EntitiesService,
     EntityRepository,
@@ -61,8 +66,10 @@ import { AuthModule } from '../auth/auth.module';
     ScreeningAnalysisRepository,
     RiskAnalysisRepository,
     DocumentRepository,
+    DocumentConfigurationRepository,
     OrganizationEntityAssociationRepository,
     DocumentsService,
+    LocalStorageService,
   ],
   exports: [EntityRepository, IndividualEntityRepository, OrganizationEntityRepository, TypeOrmModule],
 })

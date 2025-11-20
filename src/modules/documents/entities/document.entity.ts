@@ -3,6 +3,7 @@ import { BaseEntity } from '../../common/entities/base.entity';
 import { EntityEntity } from '../../entities/entities/entity.entity';
 import { SubscriberEntity } from '../../subscribers/entities/subscriber.entity';
 import { SubscriberUserEntity } from '../../subscriber-users/entities/subscriber-user.entity';
+import { DocumentConfigurationEntity } from '../../document-configurations/entities/document-configuration.entity';
 
 @Entity('documents')
 @Index(['entity_id'])
@@ -22,19 +23,7 @@ export class DocumentEntity extends BaseEntity {
   @Column({ type: 'varchar', length: 255 })
   document_name: string;
 
-  @Column({ 
-    type: 'enum', 
-    enum: [
-      'passport', 'national_id', 'drivers_license', 'birth_certificate', 'marriage_certificate',
-      'utility_bill', 'bank_statement', 'tax_return', 'employment_letter', 'salary_slip',
-      'incorporation_certificate', 'memorandum_of_association', 'articles_of_association',
-      'board_resolution', 'power_of_attorney', 'beneficial_ownership_declaration',
-      'financial_statement', 'audit_report', 'tax_certificate', 'license_permit',
-      'compliance_certificate', 'due_diligence_report', 'risk_assessment',
-      'sanctions_screening', 'pep_screening', 'adverse_media_report',
-      'contract', 'agreement', 'invoice', 'receipt', 'other'
-    ]
-  })
+  @Column({ type: 'varchar', length: 100 })
   document_type: string;
 
   @Column({ type: 'varchar', length: 100, nullable: true })
@@ -45,6 +34,9 @@ export class DocumentEntity extends BaseEntity {
 
   @Column({ type: 'varchar', length: 500 })
   file_path: string;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  storage_path: string;
 
   @Column({ type: 'varchar', length: 255 })
   file_name: string;
@@ -183,6 +175,13 @@ export class DocumentEntity extends BaseEntity {
   @ManyToOne(() => SubscriberUserEntity)
   @JoinColumn({ name: 'uploaded_by' })
   uploader: SubscriberUserEntity;
+
+  @Column({ type: 'uuid', nullable: true })
+  document_configuration_id: string;
+
+  @ManyToOne(() => DocumentConfigurationEntity)
+  @JoinColumn({ name: 'document_configuration_id' })
+  document_configuration: DocumentConfigurationEntity;
 
   // Virtual properties
   get is_expired(): boolean {

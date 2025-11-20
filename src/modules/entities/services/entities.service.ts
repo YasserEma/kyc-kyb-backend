@@ -15,6 +15,7 @@ import { DocumentsService } from '../../documents/documents.service';
 import { IndividualIdentityDocumentRepository } from '../../individual-identity-documents/individual-identity-document.repository';
 import { OrganizationEntityAssociationRepository } from '../../organization-entity-associations/repositories/organization-entity-association.repository';
 import { EncryptionHelper } from '../../../utils/database/encryption.helper';
+import { LocalStorageService } from '../../common/services/local-storage.service';
 
 import { ListEntitiesQueryDto } from '../dtos/list-entities.dto';
 import { CreateIndividualEntityDto } from '../dtos/create-individual-entity.dto';
@@ -41,6 +42,7 @@ export class EntitiesService {
     private readonly organizationEntityAssociationRepository: OrganizationEntityAssociationRepository,
     private readonly documentsService: DocumentsService,
     private readonly configService: ConfigService,
+    private readonly storageService: LocalStorageService,
   ) {}
 
   async listEntities(subscriberId: string, query: ListEntitiesQueryDto) {
@@ -68,7 +70,25 @@ export class EntitiesService {
   async getEntityDetails(subscriberId: string, entityId: string) {
     const entity = await this.entityRepository.findDetailsById(subscriberId, entityId);
     if (!entity) throw new NotFoundException('Entity not found');
-    return entity;
+
+    const documents = await (this.documentRepository as any).repository.find({
+      where: { entity_id: entityId, is_active: true },
+      relations: ['document_configuration'],
+      order: { created_at: 'DESC' },
+    });
+
+    const docsWithUrls = await Promise.all(
+      documents.map(async (d: any) => ({
+        id: d.id,
+        name: d.document_name,
+        type: d.document_type,
+        expiry_date: d.expiry_date,
+        url: await (d.storage_path ? this.storageService.getFileUrl(d.storage_path) : this.storageService.getFileUrl(d.file_path)),
+        configuration: d.document_configuration ? { id: d.document_configuration.id, name: d.document_configuration.name, code: d.document_configuration.code } : null,
+      }))
+    );
+
+    return { ...entity, documents: docsWithUrls } as any;
   }
 
   async createIndividualEntity(subscriberId: string, userId: string, dto: CreateIndividualEntityDto) {
@@ -219,6 +239,34 @@ export class EntitiesService {
     const organization = await this.organizationEntityRepository.findByEntityId(entityId);
     if (!organization) throw new NotFoundException('Organization profile not found');
     return organization;
+  }
+
+  async getEntityNationality(subscriberId: string, entityId: string) {
+    const entity = await this.entityRepository.findOne({ where: { id: entityId, subscriber_id: subscriberId, is_active: true } });
+    if (!entity) throw new NotFoundException('Entity not found');
+
+    if (entity.entity_type === 'individual') {
+      const individual = await this.individualEntityRepository.findByEntityId(entityId);
+      if (!individual) throw new NotFoundException('Individual profile not found');
+
+      return {
+        entity_id: entity.id,
+        entity_name: entity.name,
+        nationality: individual.nationality || [],
+        country_of_residence: individual.country_of_residence || [],
+      };
+    } else if (entity.entity_type === 'organization') {
+      const organization = await this.organizationEntityRepository.findByEntityId(entityId);
+      if (!organization) throw new NotFoundException('Organization profile not found');
+
+      return {
+        entity_id: entity.id,
+        entity_name: entity.name,
+        country_of_incorporation: organization.country_of_incorporation,
+      };
+    }
+
+    throw new NotFoundException('Invalid entity type');
   }
 
   async createOrganizationEntity(subscriberId: string, userId: string, dto: CreateOrganizationEntityDto) {
@@ -508,40 +556,62 @@ export class EntitiesService {
 
   async addDocument(subscriberId: string, entityId: string, userId: string, dto: any, file?: Express.Multer.File) {
     return this.dataSource.transaction(async manager => {
-      // Verify entity exists and belongs to subscriber
       const entityRepo = manager.getRepository((this.entityRepository as any).repository.target);
       const entity = await entityRepo.findOne({ where: { id: entityId, is_active: true } });
       if (!entity) throw new NotFoundException('Entity not found');
 
-      // Use the documents service to create the document
-      const document = await this.documentsService.createDocumentFromFile(
-        dto.file || (file ? file.buffer.toString('base64') : ''),
-        subscriberId,
-        userId,
-        manager,
-        {
-          entity_id: entityId,
-          document_type: dto.document_type,
-          document_name: dto.document_name,
-          document_number: dto.document_number,
-          issuing_country: dto.issuing_country,
-          expiry_date: dto.expiry_date ? new Date(dto.expiry_date) : undefined,
-          mime_type: dto.mime_type || (file ? file.mimetype : 'application/octet-stream'),
-        }
-      );
+      let fileKey = '';
+      let fileName = '';
+      let fileExtension = '';
+      let mimeType = dto.mime_type || 'application/octet-stream';
+      let fileSize = 0;
 
-      // Log the document addition in entity history
+      if (file) {
+        fileKey = await this.storageService.uploadFile(file);
+        const path = require('path');
+        fileName = path.basename(fileKey);
+        fileExtension = (path.extname(file.originalname) || '').replace('.', '').toLowerCase();
+        mimeType = file.mimetype || mimeType;
+        fileSize = file.size || 0;
+      }
+
+      const docRepo = manager.getRepository((this.documentRepository as any).repository.target);
+      const doc = this.documentRepository.create({
+        entity_id: entityId,
+        subscriber_id: subscriberId,
+        document_name: dto.document_name,
+        document_type: dto.document_type,
+        file_path: fileKey || '/tmp/placeholder',
+        storage_path: fileKey || null,
+        file_name: fileName || dto.document_name,
+        original_file_name: file ? file.originalname : dto.document_name,
+        file_extension: fileExtension,
+        mime_type: mimeType,
+        file_size: fileSize,
+        issue_date: dto.issue_date ? new Date(dto.issue_date) : undefined,
+        expiry_date: dto.expiry_date ? new Date(dto.expiry_date) : undefined,
+        issuing_authority: dto.issuing_authority,
+        issuing_country: dto.issuing_country,
+        document_number: dto.document_number,
+        uploaded_by: userId,
+        is_active: true,
+        document_status: 'uploaded',
+        verification_status: 'pending',
+      } as any);
+
+      const saved = await docRepo.save(doc);
+
       await manager.getRepository((this.entityHistoryRepository as any).repository.target).save(
         this.entityHistoryRepository.create({
           entity_id: entityId,
           changed_by: userId,
           change_type: 'updated',
           change_description: `Document added: ${dto.document_name}`,
-          new_values: { document: { id: document.id, name: document.document_name, type: document.document_type } },
+          new_values: { document: { id: saved.id, name: saved.document_name, type: saved.document_type } },
         })
       );
 
-      return document;
+      return saved;
     });
   }
 }

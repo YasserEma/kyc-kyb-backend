@@ -187,4 +187,40 @@ export class EntitiesController {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return res.send(result.content);
   }
+
+  @Get(':entity_id/nationality')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'manager', 'analyst', 'viewer')
+  @ApiOperation({ summary: 'Get nationality/country data for an entity' })
+  @ApiParam({ name: 'entity_id', required: true })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Nationality/country data returned successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        entity_id: { type: 'string' },
+        entity_name: { type: 'string' },
+        nationality: { 
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Nationality data (for individual entities)'
+        },
+        country_of_residence: { 
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Country of residence data (for individual entities)'
+        },
+        country_of_incorporation: { 
+          type: 'string',
+          description: 'Country of incorporation (for organization entities)'
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Entity not found' })
+  async getEntityNationality(@Req() req: Request, @Param('entity_id') entityId: string) {
+    const payload = req.user as any;
+    return this.entitiesService.getEntityNationality(payload.subscriberId, entityId);
+  }
 }

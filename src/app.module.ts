@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { EntitiesModule } from './modules/entities/entities.module';
 import { OrganizationRelationshipsModule } from './modules/organization-relationships/organization-relationships.module';
 import { OrganizationEntityAssociationsModule } from './modules/organization-entity-associations/organization-entity-associations.module';
+import { DocumentConfigurationsModule } from './modules/document-configurations/document-configurations.module';
 
 const shouldInitDb = process.env.SKIP_DB !== 'true';
 const typeOrmImports = shouldInitDb
@@ -54,6 +55,7 @@ const typeOrmImports = shouldInitDb
     EntitiesModule,
     OrganizationRelationshipsModule,
     OrganizationEntityAssociationsModule,
+    DocumentConfigurationsModule,
   ],
 })
 export class AppModule {}
