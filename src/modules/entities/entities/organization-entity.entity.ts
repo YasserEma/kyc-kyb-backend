@@ -1,7 +1,6 @@
 import { Entity, Column, OneToOne, OneToMany, JoinColumn, Index } from 'typeorm';
 import { BaseEntity } from '../../common/entities/base.entity';
 import { EntityEntity } from './entity.entity';
-import { OrganizationEntityAssociationEntity } from '../../organization-entity-associations/entities/organization-entity-association.entity';
 
 @Entity('organization_entities')
 export class OrganizationEntity extends BaseEntity {
@@ -58,7 +57,4 @@ export class OrganizationEntity extends BaseEntity {
 
   @Column({ type: 'decimal', nullable: true })
   annual_revenue?: string;
-
-  @OneToMany(() => OrganizationEntityAssociationEntity, association => association.organization)
-  associations: OrganizationEntityAssociationEntity[];
 }

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder , IsNull, Brackets } from 'typeorm';
+import { Repository, SelectQueryBuilder, IsNull, Brackets } from 'typeorm';
 import { BaseRepository } from '../../common/repositories/base.repository';
 import { EntityEntity } from '../entities/entity.entity';
 import { IndividualEntity } from '../entities/individual-entity.entity';
@@ -81,6 +81,10 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
       .andWhere('entity.deleted_at IS NULL');
 
     return qb.getOne();
+  }
+
+  async findById(id: string): Promise<EntityEntity | null> {
+    return this.entityRepository.findOne({ where: { id } });
   }
 
   async findByEntityType(
@@ -171,7 +175,7 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
   }
 
   async updateScreeningStatus(
-    id: string, 
+    id: string,
     screeningStatus: 'pending' | 'in_progress' | 'completed' | 'failed' | 'requires_review'
   ): Promise<void> {
     const updateData: Partial<EntityEntity> = {
@@ -207,7 +211,7 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
     low_risk: number;
     critical_risk: number;
   }> {
-    const baseWhere = subscriberId 
+    const baseWhere = subscriberId
       ? { subscriber_id: subscriberId, is_active: true, deleted_at: IsNull() }
       : { is_active: true, deleted_at: IsNull() };
 

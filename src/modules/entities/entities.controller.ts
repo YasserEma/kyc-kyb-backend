@@ -13,7 +13,7 @@ import { UpdateEntityDto } from './dtos/update-entity.dto';
 import { UpdateEntityStatusDto } from './dtos/update-entity-status.dto';
 import { BulkActionDto } from './dtos/bulk-action.dto';
 import { ExportEntitiesDto } from './dtos/export-entities.dto';
-
+import { AddDocumentDto } from './dtos/add-document.dto';
 import { AddCustomFieldsDto } from './dtos/add-custom-fields.dto';
 
 @ApiTags('Entities')
@@ -21,7 +21,7 @@ import { AddCustomFieldsDto } from './dtos/add-custom-fields.dto';
 @UseGuards(JwtAuthGuard)
 @Controller('entities')
 export class EntitiesController {
-  constructor(private readonly entitiesService: EntitiesService) {}
+  constructor(private readonly entitiesService: EntitiesService) { }
 
   @Get()
   @UseGuards(RolesGuard)
@@ -55,17 +55,6 @@ export class EntitiesController {
     return this.entitiesService.getIndividualProfileByEntityId(payload.subscriberId, entityId);
   }
 
-  @Get(':entity_id/organization')
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'manager', 'analyst', 'viewer')
-  @ApiOperation({ summary: 'Get organization profile by entity ID' })
-  @ApiParam({ name: 'entity_id', required: true })
-  @ApiResponse({ status: 200, description: 'Organization profile returned' })
-  async getOrganizationProfile(@Req() req: Request, @Param('entity_id') entityId: string) {
-    const payload = req.user as any;
-    return this.entitiesService.getOrganizationProfileByEntityId(payload.subscriberId, entityId);
-  }
-
   @Post('individual')
   @UseGuards(RolesGuard)
   @Roles('admin', 'manager')
@@ -86,6 +75,26 @@ export class EntitiesController {
     return this.entitiesService.createOrganizationEntity(payload.subscriberId, payload.sub, dto);
   }
 
+  // NOTE: addDocument endpoint commented out - method not implemented in EntitiesService
+  // TODO: Implement addDocument method in EntitiesService before uncommenting
+  // @Post(':entity_id/documents')
+  // @UseGuards(RolesGuard)
+  // @Roles('admin', 'manager')
+  // @ApiOperation({ summary: 'Add document to entity' })
+  // @ApiParam({ name: 'entity_id', required: true })
+  // @ApiConsumes('multipart/form-data')
+  // @UseInterceptors(FileInterceptor('file'))
+  // @ApiResponse({ status: 201, description: 'Document added successfully' })
+  // async addDocument(
+  //   @Req() req: Request,
+  //   @Param('entity_id') entityId: string,
+  //   @UploadedFile() file: Express.Multer.File,
+  //   @Body() dto: AddDocumentDto
+  // ) {
+  //   const payload = req.user as any;
+  //   return this.entitiesService.addDocument(payload.subscriberId, entityId, payload.sub, dto, file);
+  // }
+
   @Post(':entity_id/custom-fields')
   @UseGuards(RolesGuard)
   @Roles('admin', 'manager')
@@ -98,7 +107,7 @@ export class EntitiesController {
     @Body() dto: AddCustomFieldsDto
   ) {
     const payload = req.user as any;
-    return this.entitiesService.addCustomFields(entityId, payload.sub, dto);
+    return this.entitiesService.addCustomFields(payload.subscriberId, entityId, dto);
   }
 
   @Put(':entity_id')
@@ -168,41 +177,5 @@ export class EntitiesController {
     }
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return res.send(result.content);
-  }
-
-  @Get(':entity_id/nationality')
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'manager', 'analyst', 'viewer')
-  @ApiOperation({ summary: 'Get nationality/country data for an entity' })
-  @ApiParam({ name: 'entity_id', required: true })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Nationality/country data returned successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        entity_id: { type: 'string' },
-        entity_name: { type: 'string' },
-        nationality: { 
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Nationality data (for individual entities)'
-        },
-        country_of_residence: { 
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Country of residence data (for individual entities)'
-        },
-        country_of_incorporation: { 
-          type: 'string',
-          description: 'Country of incorporation (for organization entities)'
-        }
-      }
-    }
-  })
-  @ApiResponse({ status: 404, description: 'Entity not found' })
-  async getEntityNationality(@Req() req: Request, @Param('entity_id') entityId: string) {
-    const payload = req.user as any;
-    return this.entitiesService.getEntityNationality(payload.subscriberId, entityId);
   }
 }

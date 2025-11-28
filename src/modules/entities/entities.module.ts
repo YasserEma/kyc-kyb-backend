@@ -29,9 +29,6 @@ import { RiskAnalysisRepository } from '../risk-analysis/repositories/risk-analy
 import { DocumentRepository } from '../documents/repositories/document.repository';
 import { DocumentConfigurationRepository } from '../document-configurations/repositories/document-configuration.repository';
 import { IndividualIdentityDocumentsModule } from '../individual-identity-documents/individual-identity-documents.module';
-import { IndividualRelationshipsModule } from '../individual-entity-relationships/individual-entity-relationships.module';
-import { OrganizationEntityAssociationEntity } from '../organization-entity-associations/entities/organization-entity-association.entity';
-import { OrganizationEntityAssociationRepository } from '../organization-entity-associations/repositories/organization-entity-association.repository';
 import { DocumentsService } from '../documents/documents.service';
 import { LocalStorageService } from '../common/services/local-storage.service';
 
@@ -49,10 +46,8 @@ import { AuthModule } from '../auth/auth.module';
       RiskAnalysisEntity,
       DocumentEntity,
       DocumentConfigurationEntity,
-      OrganizationEntityAssociationEntity,
     ]),
     IndividualIdentityDocumentsModule,
-    IndividualRelationshipsModule,
     forwardRef(() => AuthModule),
   ],
   controllers: [EntitiesController, DocumentsController],
@@ -67,10 +62,9 @@ import { AuthModule } from '../auth/auth.module';
     RiskAnalysisRepository,
     DocumentRepository,
     DocumentConfigurationRepository,
-    OrganizationEntityAssociationRepository,
     DocumentsService,
     LocalStorageService,
   ],
-  exports: [EntityRepository, IndividualEntityRepository, OrganizationEntityRepository, TypeOrmModule],
+  exports: [EntityRepository, IndividualEntityRepository, OrganizationEntityRepository, EntitiesService, TypeOrmModule],
 })
-export class EntitiesModule {}
+export class EntitiesModule { }

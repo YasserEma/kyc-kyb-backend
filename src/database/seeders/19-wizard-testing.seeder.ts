@@ -3,9 +3,9 @@ import { EntityEntity } from '../../modules/entities/entities/entity.entity';
 import { IndividualEntity } from '../../modules/entities/entities/individual-entity.entity';
 import { OrganizationEntity } from '../../modules/entities/entities/organization-entity.entity';
 import { DocumentEntity } from '../../modules/documents/entities/document.entity';
-import { IndividualEntityRelationshipEntity } from '../../modules/individual-entity-relationships/entities/individual-entity-relationship.entity';
-import { OrganizationRelationshipEntity } from '../../modules/organization-relationships/entities/organization-relationship.entity';
-import { OrganizationEntityAssociationEntity } from '../../modules/organization-entity-associations/entities/organization-entity-association.entity';
+// // import { IndividualEntityRelationshipEntity } from '../../modules/individual-entity-relationships/entities/individual-entity-relationship.entity';
+// // import { OrganizationRelationshipEntity } from '../../modules/organization-relationships/entities/organization-relationship.entity';
+// // import { OrganizationEntityAssociationEntity } from '../../modules/organization-entity-associations/entities/organization-entity-association.entity';
 
 export async function seedWizardTestingData(dataSource: DataSource): Promise<void> {
   console.log('🧙‍♂️ Starting wizard testing data seed...');
@@ -24,7 +24,7 @@ export async function seedWizardTestingData(dataSource: DataSource): Promise<voi
   // Create comprehensive wizard testing scenarios
   await createWizardTestScenario1(dataSource);
   await createWizardTestScenario2(dataSource);
-  await createWizardTestScenario3(dataSource);
+  // // await createWizardTestScenario3(dataSource); // Disabled - uses deleted relationship entities // Uses deleted relationship entities
   
   console.log('✅ Wizard testing data seed completed!');
 }
@@ -387,7 +387,7 @@ async function createWizardTestScenario2(dataSource: DataSource): Promise<void> 
   await documentRepo.save(documents);
 }
 
-async function createWizardTestScenario3(dataSource: DataSource): Promise<void> {
+/* async function createWizardTestScenario3(dataSource: DataSource): Promise<void> {
   console.log('Creating Wizard Test Scenario 3: Relationships and Associations...');
   
   const individualRelRepo = dataSource.getRepository(IndividualEntityRelationshipEntity);
@@ -531,9 +531,9 @@ async function createWizardTestScenario3(dataSource: DataSource): Promise<void> 
   ];
 
   await orgAssocRepo.save(organizationAssociations);
-}
+} */
 
-export async function clearWizardTestingData(dataSource: DataSource): Promise<void> {
+/* export async function clearWizardTestingData(dataSource: DataSource): Promise<void> {
   console.log('🧹 Clearing wizard testing data...');
   
   const entityRepo = dataSource.getRepository(EntityEntity);
@@ -596,4 +596,4 @@ export async function clearWizardTestingData(dataSource: DataSource): Promise<vo
     .execute();
 
   console.log('✅ Wizard testing data cleared!');
-}
+} */
