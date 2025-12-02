@@ -515,6 +515,16 @@ export class EntitiesService {
     return this.entityHistoryRepository.findByEntityId(entityId, 100);
   }
 
+  async findEntitiesByName(subscriberId: string, name: string) {
+    return this.entityRepository.findWithFilters(
+      {
+        subscriber_id: subscriberId,
+        name: name,
+      },
+      { page: 1, limit: 100 } // Reasonable default limit for search
+    );
+  }
+
   async exportEntities(subscriberId: string, dto: ExportEntitiesDto) {
     const result = await this.entityRepository.findWithFilters(
       {

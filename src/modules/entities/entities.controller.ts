@@ -33,6 +33,17 @@ export class EntitiesController {
     return this.entitiesService.listEntities(payload.subscriberId, query);
   }
 
+  @Get('search/name/:name')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'manager', 'analyst', 'viewer')
+  @ApiOperation({ summary: 'Search entities by name' })
+  @ApiParam({ name: 'name', required: true })
+  @ApiResponse({ status: 200, description: 'Entities found' })
+  async searchByName(@Req() req: Request, @Param('name') name: string) {
+    const payload = req.user as any;
+    return this.entitiesService.findEntitiesByName(payload.subscriberId, name);
+  }
+
   @Get(':entity_id')
   @UseGuards(RolesGuard)
   @Roles('admin', 'manager', 'analyst', 'viewer')
