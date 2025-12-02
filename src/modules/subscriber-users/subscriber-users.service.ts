@@ -24,7 +24,7 @@ export class SubscriberUsersService {
     private readonly screeningAnalysisRepository: ScreeningAnalysisRepository,
     private readonly riskAnalysisRepository: RiskAnalysisRepository,
     private readonly emailService: EmailService,
-  ) {}
+  ) { }
 
   async listUsers(subscriberId: string, query: ListUsersQueryDto) {
     const filters = {
@@ -77,8 +77,21 @@ export class SubscriberUsersService {
         .getCount(),
     ]);
 
+    // Sanitize user object by removing sensitive fields
+    const {
+      password_hash,
+      hashed_refresh_token,
+      reset_token,
+      reset_token_expires,
+      email_verification_token,
+      two_factor_secret,
+      two_factor_backup_codes,
+      google_id,
+      ...sanitizedUser
+    } = user;
+
     return {
-      user,
+      user: sanitizedUser,
       activity_summary: {
         total_logs: totalLogs,
         screenings_conducted: screeningsConducted,
@@ -182,7 +195,7 @@ export class SubscriberUsersService {
 
     return { success: true };
   }
-  
+
   async setUserStatus(userId: string, dto: UpdateStatusDto, subscriberId: string, authenticatedAdminId: string) {
     if (userId === authenticatedAdminId) {
       throw new BadRequestException('Cannot change status of your own account');
@@ -191,6 +204,21 @@ export class SubscriberUsersService {
     const user = await this.subscriberUserRepository.findOne({ where: { id: userId, subscriber_id: subscriberId } as any });
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+
+    // Prevent deactivating the last active admin
+    if (user.role === 'admin' && (dto.status === 'inactive' || dto.status === 'suspended')) {
+      const activeAdminCount = await this.subscriberUserRepository
+        .createQueryBuilder('user')
+        .where('user.subscriber_id = :subscriberId', { subscriberId })
+        .andWhere('user.role = :role', { role: 'admin' })
+        .andWhere('user.status = :status', { status: 'active' })
+        .andWhere('user.is_active = :isActive', { isActive: true })
+        .getCount();
+
+      if (activeAdminCount <= 1) {
+        throw new BadRequestException('Cannot deactivate the last active administrator.');
+      }
     }
 
     await this.subscriberUserRepository.update(userId, { status: dto.status, updated_at: new Date() } as any);
@@ -254,7 +282,7 @@ export class SubscriberUsersService {
       page += 1;
     }
 
-    const header = ['id','subscriber_id','first_name','last_name','email','role','status','department','job_title','is_active','created_at'];
+    const header = ['id', 'subscriber_id', 'first_name', 'last_name', 'email', 'role', 'status', 'department', 'job_title', 'is_active', 'created_at'];
     const rows = [header.join(',')].concat(
       all.map(u => [
         u.id,
