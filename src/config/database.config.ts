@@ -13,7 +13,7 @@ export const getDatabaseConfig = (
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
   synchronize: configService.get('DB_SYNCHRONIZE') === 'true',
-  logging: configService.get('DB_LOGGING') === 'true',
+  logging: configService.get('DB_LOGGING') === 'true' ? ['error', 'warn', 'log'] : false,
   migrationsRun: false,
   ssl: configService.get('NODE_ENV') === 'production',
 });

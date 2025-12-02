@@ -107,7 +107,7 @@ export class EntitiesController {
     @Body() dto: AddCustomFieldsDto
   ) {
     const payload = req.user as any;
-    return this.entitiesService.addCustomFields(payload.subscriberId, entityId, dto);
+    return this.entitiesService.addCustomFields(payload.subscriberId, entityId, payload.sub, dto);
   }
 
   @Put(':entity_id')

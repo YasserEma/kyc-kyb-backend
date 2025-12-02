@@ -30,7 +30,11 @@ export class CreateUnifiedRelationshipDto {
     target_entity_id?: string;
 
     @ApiPropertyOptional({
-        description: 'Data for creating a new entity to link to (mutually exclusive with target_entity_id)'
+        description: 'Data for creating a new entity to link to (mutually exclusive with target_entity_id)',
+        oneOf: [
+            { $ref: '#/components/schemas/CreateIndividualEntityDto' },
+            { $ref: '#/components/schemas/CreateOrganizationEntityDto' }
+        ]
     })
     @IsOptional()
     @IsObject()

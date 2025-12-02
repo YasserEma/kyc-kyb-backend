@@ -34,6 +34,9 @@ import { LocalStorageService } from '../common/services/local-storage.service';
 
 import { AuthModule } from '../auth/auth.module';
 
+import { EntityRelationship } from '../entity-relationships/entities/entity-relationship.entity';
+import { EntityRelationshipRepository } from '../entity-relationships/repositories/entity-relationship.repository';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -46,6 +49,7 @@ import { AuthModule } from '../auth/auth.module';
       RiskAnalysisEntity,
       DocumentEntity,
       DocumentConfigurationEntity,
+      EntityRelationship,
     ]),
     IndividualIdentityDocumentsModule,
     forwardRef(() => AuthModule),
@@ -62,6 +66,7 @@ import { AuthModule } from '../auth/auth.module';
     RiskAnalysisRepository,
     DocumentRepository,
     DocumentConfigurationRepository,
+    EntityRelationshipRepository,
     DocumentsService,
     LocalStorageService,
   ],

@@ -26,6 +26,10 @@ import { BulkActionDto } from '../dtos/bulk-action.dto';
 import { ExportEntitiesDto } from '../dtos/export-entities.dto';
 import { AddCustomFieldsDto } from '../dtos/add-custom-fields.dto';
 
+import { EntityRelationshipRepository } from '../../entity-relationships/repositories/entity-relationship.repository';
+
+// ... (existing imports)
+
 @Injectable()
 export class EntitiesService {
   constructor(
@@ -40,7 +44,7 @@ export class EntitiesService {
     private readonly documentRepository: DocumentRepository,
     private readonly documentConfigurationRepository: DocumentConfigurationRepository,
     private readonly identityDocumentRepository: IndividualIdentityDocumentRepository,
-    // private readonly organizationEntityAssociationRepository: OrganizationEntityAssociationRepository,
+    private readonly entityRelationshipRepository: EntityRelationshipRepository,
     private readonly configService: ConfigService,
     private readonly storageService: LocalStorageService,
   ) { }
@@ -71,11 +75,34 @@ export class EntitiesService {
     const entity = await this.entityRepository.findDetailsById(subscriberId, entityId);
     if (!entity) throw new NotFoundException('Entity not found');
 
-    const documents = await (this.documentRepository as any).repository.find({
-      where: { entity_id: entityId, is_active: true },
-      relations: ['document_configuration'],
-      order: { created_at: 'DESC' },
-    });
+    const [
+      documents,
+      customFields,
+      relationships,
+      riskAnalysis,
+      screeningAnalysis
+    ] = await Promise.all([
+      (this.documentRepository as any).repository.find({
+        where: { entity_id: entityId, is_active: true },
+        relations: ['document_configuration'],
+        order: { created_at: 'DESC' },
+      }),
+      (this.entityCustomFieldRepository as any).repository.find({
+        where: { entity_id: entityId },
+        order: { display_order: 'ASC', created_at: 'ASC' }
+      }),
+      this.entityRelationshipRepository.findActiveRelationships(entityId),
+      (this.riskAnalysisRepository as any).repository.find({
+        where: { entity_id: entityId },
+        order: { created_at: 'DESC' },
+        take: 1 // Latest risk analysis
+      }),
+      (this.screeningAnalysisRepository as any).repository.find({
+        where: { entity_id: entityId },
+        order: { created_at: 'DESC' },
+        take: 1 // Latest screening analysis
+      })
+    ]);
 
     const docsWithUrls = await Promise.all(
       documents.map(async (d: any) => ({
@@ -88,7 +115,14 @@ export class EntitiesService {
       }))
     );
 
-    return { ...entity, documents: docsWithUrls } as any;
+    return {
+      ...entity,
+      documents: docsWithUrls,
+      custom_fields: customFields,
+      relationships: relationships,
+      risk_analysis: riskAnalysis[0] || null,
+      screening_analysis: screeningAnalysis[0] || null,
+    } as any;
   }
 
   async createIndividualEntity(subscriberId: string, userId: string, dto: CreateIndividualEntityDto) {
@@ -506,12 +540,13 @@ export class EntitiesService {
     return { format: dto.format ?? 'csv', content: csv };
   }
 
-  async addCustomFields(entityId: string, userId: string, dto: AddCustomFieldsDto) {
+  async addCustomFields(subscriberId: string, entityId: string, userId: string, dto: AddCustomFieldsDto) {
     return this.dataSource.transaction(async manager => {
       const entityRepo = manager.getRepository((this.entityRepository as any).repository.target);
-      let entity = await entityRepo.findOne({ where: { id: entityId, is_active: true } });
+      let entity = await entityRepo.findOne({ where: { id: entityId, subscriber_id: subscriberId, is_active: true } });
       if (!entity) {
-        const rows = await manager.query('SELECT id FROM entities WHERE id = $1 LIMIT 1', [entityId]);
+        // Fallback check if entity exists but is inactive or belongs to another subscriber (for better error message or debugging, though 404 is standard)
+        const rows = await manager.query('SELECT id FROM entities WHERE id = $1 AND subscriber_id = $2 LIMIT 1', [entityId, subscriberId]);
         if (!rows?.length) throw new NotFoundException('Entity not found');
         entity = { id: rows[0].id } as any;
       }
