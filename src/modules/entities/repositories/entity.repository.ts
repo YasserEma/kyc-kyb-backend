@@ -84,7 +84,13 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
   }
 
   async findById(id: string): Promise<EntityEntity | null> {
-    return this.entityRepository.findOne({ where: { id } });
+    return this.entityRepository.findOne({
+      where: {
+        id,
+        is_active: true,
+        deleted_at: IsNull()
+      }
+    });
   }
 
   async findByEntityType(

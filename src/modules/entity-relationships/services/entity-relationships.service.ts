@@ -51,6 +51,7 @@ export class EntityRelationshipsService {
         return this.dataSource.transaction(async (manager) => {
             // 1. Validate source entity exists
             const sourceEntity = await this.entityRepository.findById(sourceEntityId);
+
             if (!sourceEntity || sourceEntity.subscriber_id !== subscriberId) {
                 throw new NotFoundException(`Source entity ${sourceEntityId} not found`);
             }

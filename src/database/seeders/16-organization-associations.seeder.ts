@@ -7,6 +7,20 @@ export async function seedOrganizationAssociations(dataSource: DataSource): Prom
   await queryRunner.connect();
 
   try {
+    // Check if the table exists (it was deprecated and removed in migration)
+    const tableExists = await queryRunner.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'organization_associations'
+      );
+    `);
+
+    if (!tableExists[0].exists) {
+      console.log('ℹ️ Table "organization_associations" has been deprecated and replaced by "entity_relationships". Skipping seeding.');
+      return;
+    }
+
     // Check if associations already exist
     const existingAssociations = await queryRunner.query('SELECT COUNT(*) as count FROM organization_associations');
     if (parseInt(existingAssociations[0].count) > 0) {
@@ -21,14 +35,14 @@ export async function seedOrganizationAssociations(dataSource: DataSource): Prom
       JOIN entities e ON oe.entity_id = e.id 
       WHERE e.entity_type = 'ORGANIZATION'
     `);
-    
+
     const individuals = await queryRunner.query(`
       SELECT ie.id, e.name
       FROM individual_entities ie 
       JOIN entities e ON ie.entity_id = e.id 
       WHERE e.entity_type = 'INDIVIDUAL'
     `);
-    
+
     const users = await queryRunner.query('SELECT id FROM subscriber_users');
 
     if (organizations.length === 0 || individuals.length === 0 || users.length === 0) {
@@ -50,7 +64,7 @@ export async function seedOrganizationAssociations(dataSource: DataSource): Prom
       'BENEFICIAL_OWNER': { category: 'ownership', hasOwnership: true, ownershipRange: [10, 100], hasPosition: false },
       'TRUSTEE': { category: 'ownership', hasOwnership: false, ownershipRange: [0, 0], hasPosition: false },
       'SETTLOR': { category: 'ownership', hasOwnership: true, ownershipRange: [50, 100], hasPosition: false },
-      
+
       // Management types
       'CEO': { category: 'management', hasOwnership: false, ownershipRange: [0, 25], hasPosition: true, signingAuthority: true },
       'CFO': { category: 'management', hasOwnership: false, ownershipRange: [0, 15], hasPosition: true, signingAuthority: true },
@@ -60,7 +74,7 @@ export async function seedOrganizationAssociations(dataSource: DataSource): Prom
       'BOARD_MEMBER': { category: 'management', hasOwnership: false, ownershipRange: [0, 30], hasPosition: true, signingAuthority: false },
       'SECRETARY': { category: 'management', hasOwnership: false, ownershipRange: [0, 5], hasPosition: true, signingAuthority: true },
       'TREASURER': { category: 'management', hasOwnership: false, ownershipRange: [0, 10], hasPosition: true, signingAuthority: true },
-      
+
       // Hybrid types
       'CEO_SHAREHOLDER': { category: 'hybrid', hasOwnership: true, ownershipRange: [15, 75], hasPosition: true, signingAuthority: true },
       'DIRECTOR_UBO': { category: 'hybrid', hasOwnership: true, ownershipRange: [25, 100], hasPosition: true, signingAuthority: true }
@@ -88,11 +102,11 @@ export async function seedOrganizationAssociations(dataSource: DataSource): Prom
       // Each organization gets 2-8 associations
       const numAssociations = Math.floor(Math.random() * 7) + 2;
       const usedIndividuals = new Set(); // Avoid duplicate individuals for same org
-      
+
       // Ensure each organization has at least one UBO and one management position
       const guaranteedTypes = ['UBO', 'CEO'];
       const selectedTypes = [...guaranteedTypes];
-      
+
       // Add random additional types
       const availableTypes = Object.keys(relationshipTypes);
       for (let i = selectedTypes.length; i < numAssociations; i++) {
@@ -108,7 +122,7 @@ export async function seedOrganizationAssociations(dataSource: DataSource): Prom
           selectedIndividual = individuals[Math.floor(Math.random() * individuals.length)];
           attempts++;
         } while (usedIndividuals.has(selectedIndividual.id) && attempts < 20);
-        
+
         if (usedIndividuals.has(selectedIndividual.id)) {
           continue; // Skip if we can't find a unique individual
         }
@@ -195,7 +209,7 @@ export async function seedOrganizationAssociations(dataSource: DataSource): Prom
         const verifiedByValue = assoc.verified_by ? `'${assoc.verified_by}'` : 'NULL';
         const verifiedAtValue = assoc.verified_at ? `'${assoc.verified_at}'` : 'NULL';
         const notesValue = assoc.notes ? `'${assoc.notes.replace(/'/g, "''")}'` : 'NULL';
-        
+
         return `(gen_random_uuid(), '${assoc.organization_entity_id}', '${assoc.individual_entity_id}', '${assoc.relationship_type}', ${ownershipPercentageValue}, ${ownershipTypeValue}, ${positionTitleValue}, ${assoc.has_signing_authority}, '${assoc.start_date}', ${endDateValue}, ${assoc.is_active}, ${assoc.verified}, ${verifiedByValue}, ${verifiedAtValue}, ${notesValue}, '${assoc.created_at}', '${assoc.created_by}')`;
       }).join(', ');
 

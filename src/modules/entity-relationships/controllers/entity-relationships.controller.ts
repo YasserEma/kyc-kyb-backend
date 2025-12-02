@@ -20,13 +20,13 @@ import { RelationshipResponseDto } from '../dtos/relationship-response.dto';
 @ApiTags('Entity Relationships')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('api/v1')
+@Controller('entities')
 export class EntityRelationshipsController {
     constructor(
         private readonly relationshipsService: EntityRelationshipsService
     ) { }
 
-    @Post('entities/:entityId/relationships')
+    @Post(':entityId/relationships')
     @ApiOperation({
         summary: 'Create a new relationship from an entity',
         description: 'Link an entity to another entity (existing or new). Supports creating new entities inline.'
@@ -45,8 +45,8 @@ export class EntityRelationshipsController {
         @Body() dto: CreateUnifiedRelationshipDto,
         @Req() req: any
     ) {
-        const subscriberId = req.user.subscriber_id;
-        const userId = req.user.id;
+        const subscriberId = req.user.subscriberId;
+        const userId = req.user.sub;
 
         return this.relationshipsService.createRelationship(
             subscriberId,
@@ -56,7 +56,7 @@ export class EntityRelationshipsController {
         );
     }
 
-    @Get('entities/:entityId/relationships')
+    @Get(':entityId/relationships')
     @ApiOperation({
         summary: 'List all relationships for an entity',
         description: 'Returns all relationships where the entity is either the source or target'
@@ -79,7 +79,7 @@ export class EntityRelationshipsController {
         @Query('active_only') activeOnly: string,
         @Req() req: any
     ) {
-        const subscriberId = req.user.subscriber_id;
+        const subscriberId = req.user.subscriberId;
         const isActiveOnly = activeOnly === 'true';
 
         return this.relationshipsService.findRelationshipsByEntity(
@@ -102,7 +102,7 @@ export class EntityRelationshipsController {
         @Param('id') id: string,
         @Req() req: any
     ) {
-        const subscriberId = req.user.subscriber_id;
+        const subscriberId = req.user.subscriberId;
 
         return this.relationshipsService.getRelationshipById(subscriberId, id);
     }
@@ -124,8 +124,8 @@ export class EntityRelationshipsController {
         @Body() dto: UpdateRelationshipDto,
         @Req() req: any
     ) {
-        const subscriberId = req.user.subscriber_id;
-        const userId = req.user.id;
+        const subscriberId = req.user.subscriberId;
+        const userId = req.user.sub;
 
         return this.relationshipsService.updateRelationship(
             subscriberId,
@@ -156,8 +156,8 @@ export class EntityRelationshipsController {
         @Param('id') id: string,
         @Req() req: any
     ) {
-        const subscriberId = req.user.subscriber_id;
-        const userId = req.user.id;
+        const subscriberId = req.user.subscriberId;
+        const userId = req.user.sub;
 
         return this.relationshipsService.deleteRelationship(subscriberId, id, userId);
     }
