@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { DocumentEntity } from './entities/document.entity';
 import { DocumentRepository } from './repositories/document.repository';
 import { DocumentConfigurationRepository } from '../document-configurations/repositories/document-configuration.repository';
+import { EntityRepository } from '../entities/repositories/entity.repository';
 import { LocalStorageService } from '../common/services/local-storage.service';
 import * as path from 'path';
 
@@ -28,8 +29,9 @@ export class DocumentsService {
   constructor(
     private readonly documentRepository: DocumentRepository,
     private readonly documentConfigRepo: DocumentConfigurationRepository,
+    private readonly entityRepository: EntityRepository,
     private readonly storageService: LocalStorageService,
-  ) {}
+  ) { }
 
   async createDocument(uploaderId: string, input: CreateDocumentInput) {
     const doc = this.documentRepository.create({
@@ -137,6 +139,15 @@ export class DocumentsService {
     file: Express.Multer.File,
   ) {
     if (!file) throw new BadRequestException('File is required');
+
+    // Validate that the entity exists and belongs to the subscriber
+    const entity = await this.entityRepository.findOne({
+      where: { id: entityId, subscriber_id: subscriberId, is_active: true }
+    });
+    if (!entity) {
+      throw new NotFoundException(`Entity with ID ${entityId} not found or does not belong to this subscriber`);
+    }
+
     const config = await this.documentConfigRepo.findOne({ where: { id: dto.document_configuration_id, is_active: true } });
     if (!config) throw new NotFoundException('Document configuration not found');
 

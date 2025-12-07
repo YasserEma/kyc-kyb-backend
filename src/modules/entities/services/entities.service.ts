@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { randomUUID } from 'crypto';
@@ -138,6 +138,22 @@ export class EntitiesService {
 
     try {
       return this.dataSource.transaction(async manager => {
+        // Check for duplicate entity name within the same subscriber
+        const existingEntity = await manager
+          .getRepository((this.entityRepository as any).repository.target)
+          .findOne({
+            where: {
+              subscriber_id: subscriberId,
+              name: dto.name,
+              is_active: true,
+              deleted_at: null
+            }
+          });
+
+        if (existingEntity) {
+          throw new ConflictException(`An entity with the name "${dto.name}" already exists for this subscriber`);
+        }
+
         // Create base entity
         const baseEntity = this.entityRepository.create({
           subscriber_id: subscriberId,
@@ -308,6 +324,22 @@ export class EntitiesService {
 
     try {
       return await this.dataSource.transaction(async manager => {
+        // Check for duplicate entity name within the same subscriber
+        const existingEntity = await manager
+          .getRepository((this.entityRepository as any).repository.target)
+          .findOne({
+            where: {
+              subscriber_id: subscriberId,
+              name: dto.name,
+              is_active: true,
+              deleted_at: null
+            }
+          });
+
+        if (existingEntity) {
+          throw new ConflictException(`An entity with the name "${dto.name}" already exists for this subscriber`);
+        }
+
         // Create base entity
         const baseEntity = this.entityRepository.create({
           subscriber_id: subscriberId,
