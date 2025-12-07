@@ -82,22 +82,22 @@ export class EntitiesService {
       riskAnalysis,
       screeningAnalysis
     ] = await Promise.all([
-      (this.documentRepository as any).repository.find({
-        where: { entity_id: entityId, is_active: true },
+      this.documentRepository.find({
+        where: { entity_id: entityId, subscriber_id: subscriberId, is_active: true },
         relations: ['document_configuration'],
         order: { created_at: 'DESC' },
       }),
-      (this.entityCustomFieldRepository as any).repository.find({
+      this.entityCustomFieldRepository.find({
         where: { entity_id: entityId },
         order: { display_order: 'ASC', created_at: 'ASC' }
       }),
       this.entityRelationshipRepository.findActiveRelationships(entityId),
-      (this.riskAnalysisRepository as any).repository.find({
+      this.riskAnalysisRepository.find({
         where: { entity_id: entityId },
         order: { created_at: 'DESC' },
         take: 1 // Latest risk analysis
       }),
-      (this.screeningAnalysisRepository as any).repository.find({
+      this.screeningAnalysisRepository.find({
         where: { entity_id: entityId },
         order: { created_at: 'DESC' },
         take: 1 // Latest screening analysis
