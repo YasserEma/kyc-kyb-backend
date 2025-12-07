@@ -7,6 +7,20 @@ export async function seedOrganizationRelationships(dataSource: DataSource): Pro
   await queryRunner.connect();
 
   try {
+    // Check if the table exists (it was deprecated and removed in migration)
+    const tableExists = await queryRunner.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'organization_relationships'
+      );
+    `);
+
+    if (!tableExists[0].exists) {
+      console.log('ℹ️ Table "organization_relationships" has been deprecated and replaced by "entity_relationships". Skipping seeding.');
+      return;
+    }
+
     // Check if relationships already exist
     const existingRelationships = await queryRunner.query('SELECT COUNT(*) as count FROM organization_relationships');
     if (parseInt(existingRelationships[0].count) > 0) {
@@ -29,7 +43,7 @@ export async function seedOrganizationRelationships(dataSource: DataSource): Pro
     }
 
     const relationshipTypes = [
-      'PARENT', 'SUBSIDIARY', 'AFFILIATE', 'JOINT_VENTURE', 
+      'PARENT', 'SUBSIDIARY', 'AFFILIATE', 'JOINT_VENTURE',
       'BRANCH', 'SISTER_COMPANY', 'PARTNER'
     ];
 
@@ -65,7 +79,7 @@ export async function seedOrganizationRelationships(dataSource: DataSource): Pro
       // Select two different organizations
       const primaryIndex = Math.floor(Math.random() * organizations.length);
       let relatedIndex = Math.floor(Math.random() * organizations.length);
-      
+
       // Ensure we don't relate an organization to itself
       while (relatedIndex === primaryIndex) {
         relatedIndex = Math.floor(Math.random() * organizations.length);
@@ -73,7 +87,7 @@ export async function seedOrganizationRelationships(dataSource: DataSource): Pro
 
       const primaryOrg = organizations[primaryIndex];
       const relatedOrg = organizations[relatedIndex];
-      
+
       // Create a unique pair identifier to avoid duplicates
       const pairKey = [primaryOrg.id, relatedOrg.id].sort().join('-');
       if (usedPairs.has(pairKey)) {
@@ -84,7 +98,7 @@ export async function seedOrganizationRelationships(dataSource: DataSource): Pro
       const relationshipType = relationshipTypes[Math.floor(Math.random() * relationshipTypes.length)];
       const descriptions = relationshipDescriptions[relationshipType];
       const description = descriptions[Math.floor(Math.random() * descriptions.length)];
-      
+
       // Calculate ownership percentage based on relationship type
       let ownershipPercentage = null;
       if (relationshipType !== 'SISTER_COMPANY' && Math.random() > 0.2) { // 80% chance of having ownership
@@ -95,18 +109,18 @@ export async function seedOrganizationRelationships(dataSource: DataSource): Pro
           ownershipPercentage = Math.floor(Math.random() * (maxOwnership - minOwnership + 1)) + minOwnership;
         }
       }
-      
+
       const randomUser = users[Math.floor(Math.random() * users.length)];
-      
+
       // Generate dates
       const effectiveFrom = new Date(now.getTime() - Math.floor(Math.random() * 365 * 10) * 24 * 60 * 60 * 1000); // Up to 10 years ago
       const isActive = Math.random() > 0.15; // 85% chance of being active
       const effectiveTo = isActive ? null : new Date(effectiveFrom.getTime() + Math.floor(Math.random() * (now.getTime() - effectiveFrom.getTime())));
-      
+
       const verified = Math.random() > 0.25; // 75% chance of being verified
       const verifiedBy = verified ? users[Math.floor(Math.random() * users.length)].id : null;
       const verifiedAt = verified ? new Date(effectiveFrom.getTime() + Math.floor(Math.random() * 60) * 24 * 60 * 60 * 1000) : null; // Verified within 60 days of creation
-      
+
       const createdAt = effectiveFrom;
 
       relationships.push({
@@ -183,7 +197,7 @@ export async function seedOrganizationRelationships(dataSource: DataSource): Pro
         const ownershipValue = rel.ownership_percentage !== null ? rel.ownership_percentage : 'NULL';
         const verifiedByValue = rel.verified_by ? `'${rel.verified_by}'` : 'NULL';
         const verifiedAtValue = rel.verified_at ? `'${rel.verified_at}'` : 'NULL';
-        
+
         return `(gen_random_uuid(), '${rel.primary_organization_id}', '${rel.related_organization_id}', '${rel.relationship_type}', ${ownershipValue}, '${rel.relationship_description.replace(/'/g, "''")}', '${rel.effective_from}', ${effectiveToValue}, ${rel.is_active}, ${rel.verified}, ${verifiedByValue}, ${verifiedAtValue}, '${rel.created_at}', '${rel.created_by}')`;
       }).join(', ');
 

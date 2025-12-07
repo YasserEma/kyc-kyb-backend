@@ -47,7 +47,7 @@ export class IndividualEntityRepository extends BaseRepository<IndividualEntity>
         is_active: true,
         deleted_at: IsNull()
       },
-      relations: ['entity', 'entity.subscriber']
+      relations: ['entity']
     });
   }
 

@@ -1,29 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsDateString, IsOptional, IsString, IsArray, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsOptional, IsEmail, IsDateString, IsEnum, IsArray, IsBoolean } from 'class-validator';
 
-export class IdentityDocumentDto {
-  @ApiProperty({ description: 'ID type', example: 'PASSPORT' })
-  @IsString()
-  id_type!: string;
 
-  @ApiProperty({ description: 'Nationality code (ISO alpha-2)', example: 'US' })
-  @IsString()
-  nationality!: string;
-
-  @ApiProperty({ description: 'ID number' })
-  @IsString()
-  id_number!: string;
-
-  @ApiPropertyOptional({ description: 'Expiry date (ISO date)' })
-  @IsOptional()
-  @IsDateString()
-  expiry_date?: string;
-
-  @ApiProperty({ description: 'Document file payload (base64 or multipart key)' })
-  @IsString()
-  file!: string;
-}
 
 export class CreateIndividualEntityDto {
   @ApiProperty({ description: 'Entity display name (full name)', example: 'John Doe' })
@@ -57,13 +35,6 @@ export class CreateIndividualEntityDto {
   @IsOptional()
   @IsString()
   occupation?: string;
-
-  @ApiPropertyOptional({ description: 'Identity documents', type: [IdentityDocumentDto] })
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => IdentityDocumentDto)
-  identity_documents?: IdentityDocumentDto[];
 
   @ApiPropertyOptional({ description: 'Custom fields', type: 'array' })
   @IsOptional()

@@ -7,6 +7,20 @@ export async function seedIndividualRelationships(dataSource: DataSource): Promi
   await queryRunner.connect();
 
   try {
+    // Check if the table exists (it was deprecated and removed in migration)
+    const tableExists = await queryRunner.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'individual_relationships'
+      );
+    `);
+
+    if (!tableExists[0].exists) {
+      console.log('ℹ️ Table "individual_relationships" has been deprecated and replaced by "entity_relationships". Skipping seeding.');
+      return;
+    }
+
     // Check if relationships already exist
     const existingRelationships = await queryRunner.query('SELECT COUNT(*) as count FROM individual_relationships');
     if (parseInt(existingRelationships[0].count) > 0) {
@@ -29,7 +43,7 @@ export async function seedIndividualRelationships(dataSource: DataSource): Promi
     }
 
     const relationshipTypes = [
-      'SPOUSE', 'CHILD', 'PARENT', 'SIBLING', 'RELATIVE', 
+      'SPOUSE', 'CHILD', 'PARENT', 'SIBLING', 'RELATIVE',
       'BUSINESS_PARTNER', 'ASSOCIATE', 'GUARDIAN', 'BENEFICIARY'
     ];
 
@@ -56,7 +70,7 @@ export async function seedIndividualRelationships(dataSource: DataSource): Promi
       // Select two different individuals
       const primaryIndex = Math.floor(Math.random() * individuals.length);
       let relatedIndex = Math.floor(Math.random() * individuals.length);
-      
+
       // Ensure we don't relate an individual to themselves
       while (relatedIndex === primaryIndex) {
         relatedIndex = Math.floor(Math.random() * individuals.length);
@@ -64,7 +78,7 @@ export async function seedIndividualRelationships(dataSource: DataSource): Promi
 
       const primaryIndividual = individuals[primaryIndex];
       const relatedIndividual = individuals[relatedIndex];
-      
+
       // Create a unique pair identifier to avoid duplicates
       const pairKey = [primaryIndividual.id, relatedIndividual.id].sort().join('-');
       if (usedPairs.has(pairKey)) {
@@ -75,18 +89,18 @@ export async function seedIndividualRelationships(dataSource: DataSource): Promi
       const relationshipType = relationshipTypes[Math.floor(Math.random() * relationshipTypes.length)];
       const descriptions = relationshipDescriptions[relationshipType];
       const description = descriptions[Math.floor(Math.random() * descriptions.length)];
-      
+
       const randomUser = users[Math.floor(Math.random() * users.length)];
-      
+
       // Generate dates
       const effectiveFrom = new Date(now.getTime() - Math.floor(Math.random() * 365 * 5) * 24 * 60 * 60 * 1000); // Up to 5 years ago
       const isActive = Math.random() > 0.1; // 90% chance of being active
       const effectiveTo = isActive ? null : new Date(effectiveFrom.getTime() + Math.floor(Math.random() * (now.getTime() - effectiveFrom.getTime())));
-      
+
       const verified = Math.random() > 0.3; // 70% chance of being verified
       const verifiedBy = verified ? users[Math.floor(Math.random() * users.length)].id : null;
       const verifiedAt = verified ? new Date(effectiveFrom.getTime() + Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000) : null; // Verified within 30 days of creation
-      
+
       const createdAt = effectiveFrom;
 
       relationships.push({
@@ -144,7 +158,7 @@ export async function seedIndividualRelationships(dataSource: DataSource): Promi
         const effectiveToValue = rel.effective_to ? `'${rel.effective_to}'` : 'NULL';
         const verifiedByValue = rel.verified_by ? `'${rel.verified_by}'` : 'NULL';
         const verifiedAtValue = rel.verified_at ? `'${rel.verified_at}'` : 'NULL';
-        
+
         return `(gen_random_uuid(), '${rel.primary_individual_id}', '${rel.related_individual_id}', '${rel.relationship_type}', '${rel.relationship_description.replace(/'/g, "''")}', '${rel.effective_from}', ${effectiveToValue}, ${rel.is_active}, ${rel.verified}, ${verifiedByValue}, ${verifiedAtValue}, '${rel.created_at}', '${rel.created_by}')`;
       }).join(', ');
 

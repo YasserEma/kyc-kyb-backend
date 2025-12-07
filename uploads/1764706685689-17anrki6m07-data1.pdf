@@ -1,0 +1,72 @@
+“Souqak” Platform Project
+The Integrated Multi-Vendor E-Commerce Marketplace – 2025 Edition
+Project Overview
+
+“Souqak” is a next-generation Saudi e-commerce platform operating as a Multi-Vendor Marketplace. It enables any individual or company to create their own online store within the platform in just minutes, while allowing full centralized management by the platform owner.
+
+Current Numbers (as of November 19, 2025)
+
+Registered active sellers: 4,829 sellers
+
+Total listed products: 187,432 products
+
+Total sales value since the beta launch: 48.7 million SAR
+
+Average daily sales in November 2025: 1,840,000 SAR
+
+Total completed orders: 428,391 orders
+
+Average order value: 285 SAR
+
+Daily visitors: more than 180,000 visitors per day
+
+Key Features of the Platform
+
+Automatic seller registration system with commercial registration and IBAN verification
+
+Separate dashboard for each seller (product management – inventory – orders – wallet – reports)
+
+Flexible commission system (fixed, percentage-based, or category-based)
+
+Automatic order splitting (Split Order) when multiple sellers are involved
+
+12 Saudi and international payment gateways
+(Mada, Visa, Mastercard, Tabby, Tamara, Lean, Apple Pay, STC Pay, bank transfer)
+
+Smart integrated shipping engine with Aramex, SMSA, Zajil, FedEx, DHL, and SPL
+
+Discount coupon system (platform-wide or seller-specific)
+
+Product and store ratings & reviews
+
+Automatic return and exchange system with shipping label printing
+
+Instant notifications (Push – SMS – Email – WhatsApp Business)
+
+Mobile apps for customers and sellers (iOS + Android) – completed and published
+
+Full support for Arabic and English with RTL layout
+
+Auctions and special offers management system
+
+Loyalty and reward points program
+
+Advanced analytics reports using Laravel Nova + Power BI
+
+Technologies Used
+
+Laravel 11 + PHP 8.3
+
+MySQL + Redis + Elasticsearch
+
+Microservices for payments, shipping, and notifications
+
+Queue System (Horizon + Redis)
+
+Ready APIs for mobile apps (Sanctum + Passport)
+
+Server setup: 8 high-performance servers (Nginx + PHP-FPM)
+
+Current Status
+
+94% of the project is completed – ready for official launch within just 10 days.

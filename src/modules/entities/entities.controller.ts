@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req, UseGuards, Res } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req, UseGuards, Res, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags, ApiConsumes } from '@nestjs/swagger';
 import { Request, Response } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -12,13 +13,15 @@ import { UpdateEntityDto } from './dtos/update-entity.dto';
 import { UpdateEntityStatusDto } from './dtos/update-entity-status.dto';
 import { BulkActionDto } from './dtos/bulk-action.dto';
 import { ExportEntitiesDto } from './dtos/export-entities.dto';
+import { AddDocumentDto } from './dtos/add-document.dto';
+import { AddCustomFieldsDto } from './dtos/add-custom-fields.dto';
 
 @ApiTags('Entities')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('entities')
 export class EntitiesController {
-  constructor(private readonly entitiesService: EntitiesService) {}
+  constructor(private readonly entitiesService: EntitiesService) { }
 
   @Get()
   @UseGuards(RolesGuard)
@@ -28,6 +31,17 @@ export class EntitiesController {
   async listEntities(@Req() req: Request, @Query() query: ListEntitiesQueryDto) {
     const payload = req.user as any;
     return this.entitiesService.listEntities(payload.subscriberId, query);
+  }
+
+  @Get('search/name/:name')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'manager', 'analyst', 'viewer')
+  @ApiOperation({ summary: 'Search entities by name' })
+  @ApiParam({ name: 'name', required: true })
+  @ApiResponse({ status: 200, description: 'Entities found' })
+  async searchByName(@Req() req: Request, @Param('name') name: string) {
+    const payload = req.user as any;
+    return this.entitiesService.findEntitiesByName(payload.subscriberId, name);
   }
 
   @Get(':entity_id')
@@ -70,6 +84,41 @@ export class EntitiesController {
   async createOrganizationEntity(@Req() req: Request, @Body() dto: CreateOrganizationEntityDto) {
     const payload = req.user as any;
     return this.entitiesService.createOrganizationEntity(payload.subscriberId, payload.sub, dto);
+  }
+
+  // NOTE: addDocument endpoint commented out - method not implemented in EntitiesService
+  // TODO: Implement addDocument method in EntitiesService before uncommenting
+  // @Post(':entity_id/documents')
+  // @UseGuards(RolesGuard)
+  // @Roles('admin', 'manager')
+  // @ApiOperation({ summary: 'Add document to entity' })
+  // @ApiParam({ name: 'entity_id', required: true })
+  // @ApiConsumes('multipart/form-data')
+  // @UseInterceptors(FileInterceptor('file'))
+  // @ApiResponse({ status: 201, description: 'Document added successfully' })
+  // async addDocument(
+  //   @Req() req: Request,
+  //   @Param('entity_id') entityId: string,
+  //   @UploadedFile() file: Express.Multer.File,
+  //   @Body() dto: AddDocumentDto
+  // ) {
+  //   const payload = req.user as any;
+  //   return this.entitiesService.addDocument(payload.subscriberId, entityId, payload.sub, dto, file);
+  // }
+
+  @Post(':entity_id/custom-fields')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'manager')
+  @ApiOperation({ summary: 'Add custom fields to entity' })
+  @ApiParam({ name: 'entity_id', required: true })
+  @ApiResponse({ status: 201, description: 'Custom fields added successfully' })
+  async addCustomFields(
+    @Req() req: Request,
+    @Param('entity_id') entityId: string,
+    @Body() dto: AddCustomFieldsDto
+  ) {
+    const payload = req.user as any;
+    return this.entitiesService.addCustomFields(payload.subscriberId, entityId, payload.sub, dto);
   }
 
   @Put(':entity_id')

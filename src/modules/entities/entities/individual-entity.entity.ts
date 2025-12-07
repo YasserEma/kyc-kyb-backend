@@ -1,8 +1,6 @@
 import { Entity, Column, OneToOne, OneToMany, JoinColumn, Index } from 'typeorm';
 import { BaseEntity } from '../../common/entities/base.entity';
 import { EntityEntity } from './entity.entity';
-import { OrganizationEntityAssociationEntity } from '../../organization-entity-associations/entities/organization-entity-association.entity';
-import { IndividualEntityRelationshipEntity } from '../../individual-entity-relationships/entities/individual-entity-relationship.entity';
 import { IndividualIdentityDocumentEntity } from '../../individual-identity-documents/individual-identity-document.entity';
 
 @Entity('individual_entities')
@@ -50,15 +48,6 @@ export class IndividualEntity extends BaseEntity {
 
   @Column({ type: 'text', nullable: true })
   criminal_record_details?: string;
-
-  @OneToMany(() => OrganizationEntityAssociationEntity, association => association.individual)
-  organization_associations: OrganizationEntityAssociationEntity[];
-
-  @OneToMany(() => IndividualEntityRelationshipEntity, relationship => relationship.primary_individual)
-  primary_relationships: IndividualEntityRelationshipEntity[];
-
-  @OneToMany(() => IndividualEntityRelationshipEntity, relationship => relationship.related_individual)
-  related_relationships: IndividualEntityRelationshipEntity[];
 
   // Computed property for full name
   get full_name(): string {

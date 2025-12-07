@@ -18,7 +18,7 @@ export class EmailService {
   }
 
   async sendPasswordResetEmail(email: string, resetToken: string): Promise<void> {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    const frontendUrl = this.configService.get<string>('app.frontendUrl') || 'http://localhost:3000';
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
 
     const mailOptions = {
@@ -38,7 +38,7 @@ export class EmailService {
   }
 
   async sendWelcomeEmail(email: string, adminName: string): Promise<void> {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    const frontendUrl = this.configService.get<string>('app.frontendUrl') || 'http://localhost:3000';
     const loginUrl = `${frontendUrl}/login`;
 
     const mailOptions = {
@@ -58,7 +58,7 @@ export class EmailService {
   }
 
   async sendNewUserInvitation(email: string, fullName: string, temporaryPassword: string): Promise<void> {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    const frontendUrl = this.configService.get<string>('app.frontendUrl') || 'http://localhost:3000';
     const loginUrl = `${frontendUrl}/login`;
 
     const mailOptions = {
@@ -78,7 +78,7 @@ export class EmailService {
   }
 
   async sendAdminPasswordChange(email: string, fullName: string, newPassword: string): Promise<void> {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    const frontendUrl = this.configService.get<string>('app.frontendUrl') || 'http://localhost:3000';
     const loginUrl = `${frontendUrl}/login`;
 
     const mailOptions = {

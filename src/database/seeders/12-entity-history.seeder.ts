@@ -47,7 +47,7 @@ export async function seedEntityHistory(dataSource: DataSource): Promise<void> {
         changed_at: createDate.toISOString(),
         changed_by: randomUser.id,
         change_type: 'CREATE',
-        changes: JSON.stringify([
+        old_values: JSON.stringify([
           {
             field: 'entity_type',
             old_value: null,
@@ -115,7 +115,7 @@ export async function seedEntityHistory(dataSource: DataSource): Promise<void> {
           changed_at: updateDate.toISOString(),
           changed_by: updateUser.id,
           change_type: 'UPDATE',
-          changes: JSON.stringify(selectedChanges),
+          old_values: JSON.stringify(selectedChanges),
           change_description: `Entity information updated: ${selectedChanges.map(c => c.field).join(', ')}`,
           ip_address: ipAddresses[Math.floor(Math.random() * ipAddresses.length)],
           user_agent: userAgents[Math.floor(Math.random() * userAgents.length)]
@@ -142,7 +142,7 @@ export async function seedEntityHistory(dataSource: DataSource): Promise<void> {
           changed_at: statusChangeDate.toISOString(),
           changed_by: statusUser.id,
           change_type: 'STATUS_CHANGE',
-          changes: JSON.stringify([
+          old_values: JSON.stringify([
             {
               field: 'status',
               old_value: statusChange.from,
@@ -162,11 +162,11 @@ export async function seedEntityHistory(dataSource: DataSource): Promise<void> {
     for (let i = 0; i < historyEntries.length; i += batchSize) {
       const batch = historyEntries.slice(i, i + batchSize);
       const values = batch.map(entry => 
-        `(gen_random_uuid(), '${entry.entity_id}', '${entry.changed_at}', '${entry.changed_by}', '${entry.change_type}', '${entry.changes.replace(/'/g, "''")}', '${entry.change_description.replace(/'/g, "''")}', '${entry.ip_address}', '${entry.user_agent.replace(/'/g, "''")}')`
+        `(gen_random_uuid(), '${entry.entity_id}', '${entry.changed_at}', '${entry.changed_by}', '${entry.change_type}', '${entry.old_values.replace(/'/g, "''")}', '${entry.change_description.replace(/'/g, "''")}', '${entry.ip_address}', '${entry.user_agent.replace(/'/g, "''")}')`
       ).join(', ');
 
       await queryRunner.query(`
-        INSERT INTO entity_history (id, entity_id, changed_at, changed_by, change_type, changes, change_description, ip_address, user_agent)
+        INSERT INTO entity_history (id, entity_id, changed_at, changed_by, change_type, old_values, change_description, ip_address, user_agent)
         VALUES ${values}
       `);
     }

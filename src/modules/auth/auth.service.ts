@@ -25,7 +25,7 @@ import { TokenPayload, GoogleProfile } from './interfaces/token-payload.interfac
 import {
   RegisterResponseDto,
   LoginResponseDto,
-  RefreshResponseDto,
+  RefreshTokenResponseDto,
   MessageResponseDto,
 } from './dto/auth-response.dto';
 
@@ -72,9 +72,9 @@ export class AuthService {
 
       // Create subscriber entity
       const subscriber = this.subscriberRepository.create({
-        username: dto.companyName, // Map companyName to username
-        email: normalizedEmail, // Use admin email as subscriber email (normalized)
-        password: hashedPassword, // Temporary password, will be managed by users
+        username: dto.companyName,
+        email: normalizedEmail,
+        password: hashedPassword,
         type: dto.companyType,
         company_name: dto.companyName,
         contact_person_phone: dto.companyContactPhone,
@@ -90,7 +90,6 @@ export class AuthService {
         last_name: lastName,
         email: normalizedEmail,
         password_hash: hashedPassword,
-        phone: dto.adminPhoneNumber,
         role: 'admin',
         status: 'active',
       });
@@ -109,8 +108,7 @@ export class AuthService {
       this.logger.log(`New subscriber registered: ${savedSubscriber.id} with admin user: ${savedAdminUser.id}`);
 
       return {
-        subscriberId: savedSubscriber.id,
-        adminUserId: savedAdminUser.id,
+        message: 'Subscriber registered successfully',
       };
     } catch (error) {
       if (error instanceof ConflictException) {
@@ -140,8 +138,8 @@ export class AuthService {
 
   async login(dto: LoginDto): Promise<LoginResponseDto> {
     try {
-      // Find user by email (username field contains email)
-      const user = await this.subscriberUserRepository.findByEmail(dto.username);
+      // Find user by email
+      const user = await this.subscriberUserRepository.findByEmail(dto.email);
       if (!user) {
         throw new NotFoundException('User not found');
       }
@@ -229,7 +227,7 @@ export class AuthService {
     }
   }
 
-  async refreshToken(dto: RefreshTokenDto): Promise<RefreshResponseDto> {
+  async refreshToken(dto: RefreshTokenDto): Promise<RefreshTokenResponseDto> {
     try {
       // Verify refresh token signature and expiration
       const payload = this.jwtService.verify(dto.refresh_token, {
@@ -293,9 +291,6 @@ export class AuthService {
 
       return {
         access_token: newAccessToken,
-        refresh_token: newRefreshToken,
-        expires_in: expiresIn,
-        token_type: 'Bearer',
       };
     } catch (error) {
       if (error instanceof Error && (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError')) {
@@ -422,7 +417,7 @@ export class AuthService {
       }
 
       // Hash new password
-      const hashedPassword = await bcrypt.hash(dto.new_password, 12);
+      const hashedPassword = await bcrypt.hash(dto.password, 12);
 
       // Update password and clear reset token
       await this.subscriberUserRepository.updatePassword(user.id, hashedPassword);

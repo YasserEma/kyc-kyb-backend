@@ -1,40 +1,57 @@
+import * as Joi from 'joi';
+
 export function validateEnv(): void {
-  const required = [
-    'DB_HOST',
-    'DB_PORT',
-    'DB_USERNAME',
-    'DB_PASSWORD',
-    'DB_DATABASE',
-    'NODE_ENV',
-    'JWT_ACCESS_SECRET',
-    'JWT_REFRESH_SECRET',
-    'JWT_ACCESS_EXPIRATION',
-    'JWT_REFRESH_EXPIRATION',
-  ];
+  const envSchema = Joi.object({
+    // Database configuration
+    DB_HOST: Joi.string().required(),
+    DB_PORT: Joi.number().required(),
+    DB_USERNAME: Joi.string().required(),
+    DB_PASSWORD: Joi.string().required(),
+    DB_DATABASE: Joi.string().required(),
 
-  const optional = [
-    'GOOGLE_CLIENT_ID',
-    'GOOGLE_CLIENT_SECRET',
-    'GOOGLE_CALLBACK_URL',
-    'EMAIL_HOST',
-    'EMAIL_PORT',
-    'EMAIL_USER',
-    'EMAIL_PASSWORD',
-    'EMAIL_FROM',
-    'FRONTEND_URL',
-  ];
+    // Application configuration
+    NODE_ENV: Joi.string().valid('development', 'production', 'test').required(),
+    PORT: Joi.number().optional().default(3000),
+    API_VERSION: Joi.string().optional().default('v1'),
 
-  const missing = required.filter((key) => !process.env[key]);
-  if (missing.length) {
-    throw new Error(`Missing required env vars: ${missing.join(', ')}`);
-  }
+    // JWT configuration
+    JWT_ACCESS_SECRET: Joi.string().min(32).required(),
+    JWT_REFRESH_SECRET: Joi.string().min(32).required(),
+    JWT_ACCESS_EXPIRATION: Joi.string().required(),
+    JWT_REFRESH_EXPIRATION: Joi.string().required(),
 
-  // Validate JWT secrets are at least 32 characters
-  if (process.env.JWT_ACCESS_SECRET && process.env.JWT_ACCESS_SECRET.length < 32) {
-    throw new Error('JWT_ACCESS_SECRET must be at least 32 characters long');
-  }
+    // Frontend URL - required and must be valid URI without trailing slash
+    FRONTEND_URL: Joi.string()
+      .uri()
+      .pattern(/[^\/]$/, 'no trailing slash')
+      .required()
+      .messages({
+        'string.pattern.name': 'FRONTEND_URL must not have a trailing slash',
+        'any.required': 'FRONTEND_URL is required',
+        'string.uri': 'FRONTEND_URL must be a valid URI',
+      }),
 
-  if (process.env.JWT_REFRESH_SECRET && process.env.JWT_REFRESH_SECRET.length < 32) {
-    throw new Error('JWT_REFRESH_SECRET must be at least 32 characters long');
+    // Optional Google OAuth configuration
+    GOOGLE_CLIENT_ID: Joi.string().optional(),
+    GOOGLE_CLIENT_SECRET: Joi.string().optional(),
+    GOOGLE_CALLBACK_URL: Joi.string().uri().optional(),
+
+    // Optional email configuration
+    EMAIL_HOST: Joi.string().optional(),
+    EMAIL_PORT: Joi.number().optional(),
+    EMAIL_USER: Joi.string().optional(),
+    EMAIL_PASSWORD: Joi.string().optional(),
+    EMAIL_FROM: Joi.string().email().optional(),
+
+    // Nodemailer configuration (used in email service)
+    NODEMAILER_EMAIL: Joi.string().email().optional(),
+    NODEMAILER_PASSWORD: Joi.string().optional(),
+  }).unknown(true); // Allow other environment variables
+
+  const { error } = envSchema.validate(process.env, { abortEarly: false });
+
+  if (error) {
+    const errorMessages = error.details.map((detail: Joi.ValidationErrorItem) => detail.message).join(', ');
+    throw new Error(`Environment validation failed: ${errorMessages}`);
   }
 }

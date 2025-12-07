@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder , IsNull} from 'typeorm';
+import { Repository, SelectQueryBuilder, IsNull, Brackets } from 'typeorm';
 import { BaseRepository } from '../../common/repositories/base.repository';
 import { EntityEntity } from '../entities/entity.entity';
 import { IndividualEntity } from '../entities/individual-entity.entity';
@@ -57,6 +57,39 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
       },
       // Only load existing relations; inverse relations to individual/organization are not defined
       relations: ['subscriber']
+    });
+  }
+
+  async findDetailsById(subscriberId: string, entityId: string): Promise<EntityEntity | null> {
+    const qb = this.entityRepository
+      .createQueryBuilder('entity')
+      .leftJoinAndMapOne(
+        'entity.individual',
+        IndividualEntity,
+        'individualEntity',
+        "individualEntity.entity_id = entity.id AND entity.entity_type = 'individual'"
+      )
+      .leftJoinAndMapOne(
+        'entity.organization',
+        OrganizationEntity,
+        'organizationEntity',
+        "organizationEntity.entity_id = entity.id AND entity.entity_type = 'organization'"
+      )
+      .where('entity.id = :entityId', { entityId })
+      .andWhere('entity.subscriber_id = :subscriberId', { subscriberId })
+      .andWhere('entity.is_active = true')
+      .andWhere('entity.deleted_at IS NULL');
+
+    return qb.getOne();
+  }
+
+  async findById(id: string): Promise<EntityEntity | null> {
+    return this.entityRepository.findOne({
+      where: {
+        id,
+        is_active: true,
+        deleted_at: IsNull()
+      }
     });
   }
 
@@ -148,7 +181,7 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
   }
 
   async updateScreeningStatus(
-    id: string, 
+    id: string,
     screeningStatus: 'pending' | 'in_progress' | 'completed' | 'failed' | 'requires_review'
   ): Promise<void> {
     const updateData: Partial<EntityEntity> = {
@@ -184,7 +217,7 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
     low_risk: number;
     critical_risk: number;
   }> {
-    const baseWhere = subscriberId 
+    const baseWhere = subscriberId
       ? { subscriber_id: subscriberId, is_active: true, deleted_at: IsNull() }
       : { is_active: true, deleted_at: IsNull() };
 
@@ -241,10 +274,18 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
   private createFilteredQuery(filters: EntityFilter): SelectQueryBuilder<EntityEntity> {
     const queryBuilder = this.entityRepository
       .createQueryBuilder('entity')
-      .leftJoinAndSelect('entity.subscriber', 'subscriber')
-      // Join related tables by foreign key instead of non-existent inverse relations
-      .leftJoin(IndividualEntity, 'individualEntity', 'individualEntity.entity_id = entity.id')
-      .leftJoin(OrganizationEntity, 'organizationEntity', 'organizationEntity.entity_id = entity.id')
+      .leftJoinAndMapOne(
+        'entity.individual',
+        IndividualEntity,
+        'individualEntity',
+        "individualEntity.entity_id = entity.id AND entity.entity_type = 'individual'"
+      )
+      .leftJoinAndMapOne(
+        'entity.organization',
+        OrganizationEntity,
+        'organizationEntity',
+        "organizationEntity.entity_id = entity.id AND entity.entity_type = 'organization'"
+      )
       .where('entity.is_active = :isActive', { isActive: true })
       .andWhere('entity.deleted_at IS NULL');
 
@@ -289,9 +330,23 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
     }
 
     if (filters.search) {
+      const searchTerm = `%${filters.search}%`;
+      queryBuilder.setParameter('searchTerm', searchTerm);
       queryBuilder.andWhere(
-        '(entity.name ILIKE :search OR entity.reference_number ILIKE :search)',
-        { search: `%${filters.search}%` }
+        new Brackets((qb) => {
+          qb.where('entity.name ILIKE :searchTerm')
+            .orWhere('entity.reference_number ILIKE :searchTerm')
+            .orWhere('individualEntity.gender ILIKE :searchTerm')
+            .orWhere('individualEntity.address ILIKE :searchTerm')
+            .orWhere('individualEntity.occupation ILIKE :searchTerm')
+            .orWhere('individualEntity.source_of_income ILIKE :searchTerm')
+            .orWhere("individualEntity.nationality::text ILIKE :searchTerm")
+            .orWhere("individualEntity.country_of_residence::text ILIKE :searchTerm")
+            .orWhere('organizationEntity.legal_name ILIKE :searchTerm')
+            .orWhere('organizationEntity.trade_name ILIKE :searchTerm')
+            .orWhere('organizationEntity.tax_identification_number ILIKE :searchTerm')
+            .orWhere('organizationEntity.commercial_registration_number ILIKE :searchTerm');
+        })
       );
     }
 

@@ -1,68 +1,375 @@
-# KYC/KYB Backend API
+# KYC-KYB Backend System
 
-This repository contains the backend API for the KYC/KYB project. It is built with NestJS, a progressive Node.js framework for building efficient, reliable, and scalable server-side applications.
+A comprehensive Know Your Customer (KYC) and Know Your Business (KYB) backend system built with NestJS, TypeScript, and PostgreSQL.
 
-## Features
-
-- **Authentication:** Secure user authentication and authorization using JWT and Google OAuth.
-- **User Management:** Create, read, update, and delete users.
-- **Subscriber Management:** Manage subscribers and their associated users.
-- **Email Service:** Send emails for password resets and welcome messages.
-
-## Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/en/) (v14 or later)
-- [npm](https://www.npmjs.com/)
-- [Docker](https://www.docker.com/)
+- Node.js (v18 or higher)
+- PostgreSQL (v14 or higher)
+- Docker and Docker Compose (optional, for containerized PostgreSQL)
 
-### Installation
+### Environment Setup
 
-1. **Clone the repository:**
-
+1. **Clone the repository**
    ```bash
-   git clone https://github.com/YasserEma/kyc-kyb-backend.git
-   cd kyc-kyb-backend
+   git clone <repository-url>
+   cd backend-kyc
    ```
 
-2. **Install dependencies:**
-
+2. **Install dependencies**
    ```bash
    npm install
    ```
 
-3. **Set up environment variables:**
-
-   Create a `.env` file in the root of the project and add the following environment variables:
-
-   ```
-   DATABASE_URL=your-database-url
-   JWT_SECRET=your-jwt-secret
-   GOOGLE_OAUTH_CLIENT_ID=your-google-oauth-client-id
-   GOOGLE_OAUTH_CLIENT_SECRET=your-google-oauth-client-secret
-   GOOGLE_OAUTH_CALLBACK_URL=your-google-oauth-callback-url
-   EMAIL_HOST=your-email-host
-   EMAIL_PORT=your-email-port
-   EMAIL_SECURE=your-email-secure
-   EMAIL_USER=your-email-user
-   EMAIL_PASS=your-email-pass
-   EMAIL_FROM=your-email-from
-   FRONTEND_URL=your-frontend-url
-   ```
-
-### Running the Application
-
-1. **Start the database:**
-
+3. **Environment Configuration**
    ```bash
-   docker-compose up -d
+   cp .env.example .env
+   ```
+   
+   Edit `.env` file with your configuration:
+   ```env
+   # Database Configuration
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_USERNAME=postgres
+   DB_PASSWORD=your_password
+   DB_DATABASE=kyc_kyb_system
+   
+   # Application Configuration
+   NODE_ENV=development
+   PORT=3000
+   JWT_SECRET=your_jwt_secret_key
+   
+   # Email Configuration (Optional)
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=your_email@gmail.com
+   SMTP_PASS=your_app_password
    ```
 
-2. **Run the application:**
+## 🗄️ Database Management
 
-   ```bash
-   npm run start:dev
-   ```
+### Complete Database Reset and Recreation
 
-The application will be running on `http://localhost:3000`.
+This section provides comprehensive instructions for completely resetting your database, recreating it, and setting up fresh migrations and seeders.
+
+#### Option 1: Using Docker PostgreSQL (Recommended)
+
+**Step 1: Stop and Remove Existing Database**
+```bash
+# Stop the PostgreSQL container
+docker compose down
+
+# Remove PostgreSQL data directory (CAREFUL: This deletes ALL data)
+rm -rf .docker/postgres-data
+# OR on Windows PowerShell:
+Remove-Item -Recurse -Force .docker/postgres-data
+```
+
+**Step 2: Start Fresh PostgreSQL Container**
+```bash
+# Start PostgreSQL container
+docker compose up -d postgres
+
+# Wait for PostgreSQL to be ready
+docker compose exec postgres pg_isready -U postgres -d kyc_kyb_system
+```
+
+**Step 3: Create Database and Run Migrations**
+```bash
+# Create the database
+npm run db:create
+
+# Run all migrations
+npm run migration:run
+
+# Seed the database with initial data
+npm run seed
+```
+
+#### Option 2: Using Local PostgreSQL
+
+**Step 1: Connect to PostgreSQL and Drop Database**
+```bash
+# Connect to PostgreSQL
+psql -U postgres
+
+# Drop existing database (if exists)
+DROP DATABASE IF EXISTS kyc_kyb_system;
+
+# Create new database
+CREATE DATABASE kyc_kyb_system;
+
+# Exit PostgreSQL
+\q
+```
+
+**Step 2: Run Migrations and Seeders**
+```bash
+# Run all migrations
+npm run migration:run
+
+# Seed the database
+npm run seed
+```
+
+#### Option 3: Complete Reset Script (Automated)
+
+Create a complete reset script for convenience:
+
+```bash
+#!/bin/bash
+# save as reset-database.sh
+
+echo "🗄️ Starting complete database reset..."
+
+# Stop Docker containers
+echo "📦 Stopping Docker containers..."
+docker compose down
+
+# Remove PostgreSQL data
+echo "🗑️ Removing PostgreSQL data directory..."
+rm -rf .docker/postgres-data 2>/dev/null || true
+# OR on Windows PowerShell:
+Remove-Item -Recurse -Force .docker/postgres-data -ErrorAction SilentlyContinue
+
+# Start fresh PostgreSQL
+echo "🚀 Starting fresh PostgreSQL container..."
+docker compose up -d postgres
+
+# Wait for PostgreSQL to be ready
+echo "⏳ Waiting for PostgreSQL to be ready..."
+sleep 10
+
+# Create database
+echo "🏗️ Creating database..."
+npm run db:create
+
+# Run migrations
+echo "📊 Running migrations..."
+npm run migration:run
+
+# Seed database
+echo "🌱 Seeding database..."
+npm run seed
+
+echo "✅ Database reset complete!"
+echo "🎉 Your database is now fresh with all migrations and seed data."
+```
+
+Make the script executable:
+```bash
+# For Unix/Linux/macOS:
+chmod +x reset-database.sh
+
+# For Windows PowerShell (run as Administrator):
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+Run the complete reset:
+```bash
+# For Unix/Linux/macOS:
+./reset-database.sh
+
+# For Windows PowerShell:
+.\reset-database.ps1
+```
+
+## 🔄 Migration Management
+
+### Creating New Migrations
+
+```bash
+# Generate a new migration file
+typeorm migration:create src/database/migrations/YourMigrationName
+
+# Generate migration based on entity changes
+typeorm migration:generate src/database/migrations/AutoGeneratedMigration -d src/config/data-source.ts
+```
+
+### Running Migrations
+
+```bash
+# Run all pending migrations
+npm run migration:run
+
+# Revert last migration
+npm run migration:revert
+
+# Check migration status
+typeorm migration:show -d src/config/data-source.ts
+```
+
+### Migration Best Practices
+
+1. **Always backup before migrations in production**
+2. **Test migrations in development first**
+3. **Keep migrations atomic and reversible**
+4. **Use meaningful migration names**
+5. **Document complex migrations**
+
+## 🌱 Seeder Management
+
+### Running Seeders
+
+```bash
+# Run all seeders
+npm run seed
+
+# Run specific seeder (modify seeds.ts to include only specific seeders)
+ts-node src/database/seeds.ts
+```
+
+### Creating New Seeders
+
+1. Create a new seeder file in `src/database/seeders/`
+2. Follow the existing pattern from other seeders
+3. Add the seeder to `src/database/seeds.ts`
+
+Example seeder structure:
+```typescript
+// src/database/seeders/your-seeder.seeder.ts
+import { DataSource } from 'typeorm';
+
+export async function runYourSeeder(dataSource: DataSource): Promise<void> {
+  const repository = dataSource.getRepository(YourEntity);
+  
+  // Your seeding logic here
+  await repository.save([
+    // Your data objects
+  ]);
+}
+```
+
+## 🧪 Testing
+
+### Run Tests
+
+```bash
+# Run API tests
+npm run test:api
+
+# Run API tests with verbose output
+npm run test:api:verbose
+
+# Run full test suite
+npm run test:full
+
+# Run end-to-end tests
+npm run test:e2e
+```
+
+## 🚀 Development
+
+### Start Development Server
+
+```bash
+# Start development server
+npm run dev
+
+# Start with Docker PostgreSQL
+docker compose up -d postgres
+npm run dev
+```
+
+### Build for Production
+
+```bash
+# Build the application
+npm run build
+
+# Start production server
+node dist/main.js
+```
+
+## 📚 API Documentation
+
+Once the server is running, access the Swagger documentation:
+- Swagger UI: `http://localhost:3000/api`
+- JSON Schema: `http://localhost:3000/api-json`
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**1. Database Connection Issues**
+```bash
+# Check if PostgreSQL is running
+docker compose ps
+
+# Check PostgreSQL logs
+docker compose logs postgres
+
+# Test connection
+docker compose exec postgres pg_isready -U postgres -d kyc_kyb_system
+```
+
+**2. Migration Failures**
+```bash
+# Check migration status
+typeorm migration:show -d src/config/data-source.ts
+
+# Revert problematic migration
+npm run migration:revert
+
+# Run migrations in debug mode
+DEBUG=typeorm:* npm run migration:run
+```
+
+**3. Permission Issues**
+```bash
+# Fix file permissions
+chmod +x reset-database.sh
+
+# Fix Docker permissions
+docker compose down
+docker compose up -d
+```
+
+### Database Schema Information
+
+For detailed database schema information, see [database.md](database.md).
+
+## 📋 Environment Variables Reference
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| DB_HOST | PostgreSQL host | localhost |
+| DB_PORT | PostgreSQL port | 5432 |
+| DB_USERNAME | Database username | postgres |
+| DB_PASSWORD | Database password | - |
+| DB_DATABASE | Database name | kyc_kyb_system |
+| NODE_ENV | Environment | development |
+| PORT | Application port | 3000 |
+| JWT_SECRET | JWT secret key | - |
+| JWT_EXPIRATION | JWT expiration time | 24h |
+| SMTP_HOST | SMTP server host | - |
+| SMTP_PORT | SMTP server port | 587 |
+| SMTP_USER | SMTP username | - |
+| SMTP_PASS | SMTP password | - |
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests and ensure they pass
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the ISC License.
+
+## 🆘 Support
+
+For support and questions:
+- Check the troubleshooting section
+- Review the API documentation
+- Check existing issues
+- Create a new issue with detailed information
+
+---
+
+**Note**: This README provides comprehensive instructions for database management. Always backup your data before performing destructive operations like database resets.

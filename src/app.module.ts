@@ -8,19 +8,22 @@ import appConfig from './config/app.config';
 import { validateEnv } from './config/validation.schema';
 import { AuthModule } from './modules/auth/auth.module';
 import { EntitiesModule } from './modules/entities/entities.module';
+import { DocumentsModule } from './modules/documents/documents.module';
+import { DocumentConfigurationsModule } from './modules/document-configurations/document-configurations.module';
+import { EntityRelationshipsModule } from './modules/entity-relationships/entity-relationships.module';
 
 const shouldInitDb = process.env.SKIP_DB !== 'true';
 const typeOrmImports = shouldInitDb
   ? [
-      TypeOrmModule.forRootAsync({
-        imports: [ConfigModule],
-        inject: [ConfigService],
-        useFactory: (configService: ConfigService) => {
-          validateEnv();
-          return getDatabaseConfig(configService);
-        },
-      }),
-    ]
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        validateEnv();
+        return getDatabaseConfig(configService);
+      },
+    }),
+  ]
   : [];
 
 @Module({
@@ -50,6 +53,9 @@ const typeOrmImports = shouldInitDb
     ...typeOrmImports,
     AuthModule,
     EntitiesModule,
+    DocumentsModule,
+    EntityRelationshipsModule,
+    DocumentConfigurationsModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }

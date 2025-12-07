@@ -8,9 +8,9 @@ import { GoogleProfile } from '../interfaces/token-payload.interface';
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   constructor(private readonly configService: ConfigService) {
     super({
-      clientID: configService.get<string>('GOOGLE_OAUTH_CLIENT_ID'),
-      clientSecret: configService.get<string>('GOOGLE_OAUTH_CLIENT_SECRET'),
-      callbackURL: configService.get<string>('GOOGLE_OAUTH_CALLBACK_URL'),
+      clientID: configService.get<string>('GOOGLE_OAUTH_CLIENT_ID') || 'placeholder-client-id',
+      clientSecret: configService.get<string>('GOOGLE_OAUTH_CLIENT_SECRET') || 'placeholder-client-secret',
+      callbackURL: configService.get<string>('GOOGLE_OAUTH_CALLBACK_URL') || 'http://localhost/google/callback',
       scope: ['email', 'profile'],
     });
   }
