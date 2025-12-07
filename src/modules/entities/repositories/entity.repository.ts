@@ -331,20 +331,21 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
 
     if (filters.search) {
       const searchTerm = `%${filters.search}%`;
+      queryBuilder.setParameter('searchTerm', searchTerm);
       queryBuilder.andWhere(
         new Brackets((qb) => {
-          qb.where('entity.name ILIKE :searchTerm', { searchTerm })
-            .orWhere('entity.reference_number ILIKE :searchTerm', { searchTerm })
-            .orWhere('individualEntity.gender ILIKE :searchTerm', { searchTerm })
-            .orWhere('individualEntity.address ILIKE :searchTerm', { searchTerm })
-            .orWhere('individualEntity.occupation ILIKE :searchTerm', { searchTerm })
-            .orWhere('individualEntity.source_of_income ILIKE :searchTerm', { searchTerm })
-            .orWhere("individualEntity.nationality::text ILIKE :searchTerm", { searchTerm })
-            .orWhere("individualEntity.country_of_residence::text ILIKE :searchTerm", { searchTerm })
-            .orWhere('organizationEntity.legal_name ILIKE :searchTerm', { searchTerm })
-            .orWhere('organizationEntity.trade_name ILIKE :searchTerm', { searchTerm })
-            .orWhere('organizationEntity.tax_identification_number ILIKE :searchTerm', { searchTerm })
-            .orWhere('organizationEntity.commercial_registration_number ILIKE :searchTerm', { searchTerm });
+          qb.where('entity.name ILIKE :searchTerm')
+            .orWhere('entity.reference_number ILIKE :searchTerm')
+            .orWhere('individualEntity.gender ILIKE :searchTerm')
+            .orWhere('individualEntity.address ILIKE :searchTerm')
+            .orWhere('individualEntity.occupation ILIKE :searchTerm')
+            .orWhere('individualEntity.source_of_income ILIKE :searchTerm')
+            .orWhere("individualEntity.nationality::text ILIKE :searchTerm")
+            .orWhere("individualEntity.country_of_residence::text ILIKE :searchTerm")
+            .orWhere('organizationEntity.legal_name ILIKE :searchTerm')
+            .orWhere('organizationEntity.trade_name ILIKE :searchTerm')
+            .orWhere('organizationEntity.tax_identification_number ILIKE :searchTerm')
+            .orWhere('organizationEntity.commercial_registration_number ILIKE :searchTerm');
         })
       );
     }
