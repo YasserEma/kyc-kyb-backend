@@ -6,10 +6,10 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
   // Set global prefix for all routes
   app.setGlobalPrefix('api/v1');
-  
+
   // Global validation pipe to handle validation errors properly
   app.useGlobalPipes(
     new ValidationPipe({
@@ -22,7 +22,7 @@ async function bootstrap() {
       exceptionFactory: (errors) => {
         // Custom exception factory to ensure 400 status codes for validation errors
         const { BadRequestException } = require('@nestjs/common');
-        const messages = errors.map(error => 
+        const messages = errors.map(error =>
           Object.values(error.constraints || {}).join(', ')
         ).join('; ');
         return new BadRequestException({
@@ -33,10 +33,10 @@ async function bootstrap() {
       },
     }),
   );
-  
+
   // Enable CORS for frontend integration with security headers
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: process.env.FRONTEND_URL,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -54,7 +54,7 @@ async function bootstrap() {
     res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
     next();
   });
-  
+
   // Swagger configuration
   const config = new DocumentBuilder()
     .setTitle('KYC/KYB Backend API')
@@ -62,13 +62,13 @@ async function bootstrap() {
     .setVersion('1.0')
     .addBearerAuth()
     .build();
-  
+
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
-  
+
   // Get port from environment or default to 3001
   const port = process.env.PORT || 3001;
-  
+
   await app.listen(port);
   console.log(`KYC/KYB Backend API is running on: http://localhost:${port}`);
   console.log(`Swagger documentation available at: http://localhost:${port}/api/docs`);

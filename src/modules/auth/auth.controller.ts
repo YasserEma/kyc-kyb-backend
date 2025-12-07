@@ -47,7 +47,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   @Get('health')
   @HttpCode(HttpStatus.OK)
@@ -313,7 +313,7 @@ export class AuthController {
   ) {
     try {
       this.logger.log(`Google OAuth callback for email: ${req.user.email}`);
-      
+
       const result = await this.authService.googleLogin({
         email: req.user.email,
         firstName: req.user.firstName,
@@ -321,20 +321,19 @@ export class AuthController {
         googleId: req.user.googleId,
       });
 
-      // In a real application, you might want to redirect to a frontend URL
-      // with the tokens as query parameters or set them as secure cookies
-      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+      // Redirect to frontend with tokens as query parameters
+      const frontendUrl = this.configService.get<string>('app.frontendUrl') || 'http://localhost:3000';
       const redirectUrl = `${frontendUrl}/auth/callback?access_token=${result.access_token}&refresh_token=${result.refresh_token}`;
-      
+
       return res.redirect(redirectUrl);
     } catch (error) {
       this.logger.error('Google OAuth callback error', error);
-      
+
       // Redirect to frontend with error
-      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+      const frontendUrl = this.configService.get<string>('app.frontendUrl') || 'http://localhost:3000';
       const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
       const errorUrl = `${frontendUrl}/auth/error?message=${encodeURIComponent(errorMessage)}`;
-      
+
       return res.redirect(errorUrl);
     }
   }
@@ -377,7 +376,7 @@ export class AuthController {
   })
   async getProfile(@Req() req: Request & { user: TokenPayload }) {
     this.logger.log(`Profile request for user: ${req.user.sub}`);
-    
+
     // The user information is already available from the JWT token
     // In a real application, you might want to fetch fresh data from the database
     return {
