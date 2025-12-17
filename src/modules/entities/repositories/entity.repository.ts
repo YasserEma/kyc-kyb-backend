@@ -310,16 +310,18 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
       });
     }
 
-    // Multi-select nationalities with OR logic (JSONB array overlap)
+    // Multi-select nationalities with OR logic (JSONB array containment)
     if (filters.nationalities && filters.nationalities.length > 0) {
       queryBuilder.andWhere(
         new Brackets(qb => {
-          qb.where("individualEntity.nationality && ARRAY[:...nationalities]::text[]", { 
+          // Use ?| operator to check if jsonb array contains any of the specified values
+          qb.where("individualEntity.nationality ?| ARRAY[:...nationalities]", { 
             nationalities: filters.nationalities 
           });
         })
       );
     }
+
 
     if (filters.risk_level) {
       queryBuilder.andWhere('UPPER(entity.risk_level) = UPPER(:riskLevel)', { riskLevel: filters.risk_level });
