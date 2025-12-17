@@ -11,6 +11,8 @@ import { CreateIndividualEntityDto } from './dtos/create-individual-entity.dto';
 import { CreateOrganizationEntityDto } from './dtos/create-organization-entity.dto';
 import { UpdateEntityDto } from './dtos/update-entity.dto';
 import { UpdateEntityStatusDto } from './dtos/update-entity-status.dto';
+import { UpdateIndividualEntityDto } from './dtos/update-individual-entity.dto';
+import { UpdateOrganizationEntityDto } from './dtos/update-organization-entity.dto';
 import { BulkActionDto } from './dtos/bulk-action.dto';
 import { ExportEntitiesDto } from './dtos/export-entities.dto';
 import { AddDocumentDto } from './dtos/add-document.dto';
@@ -84,6 +86,38 @@ export class EntitiesController {
   async createOrganizationEntity(@Req() req: Request, @Body() dto: CreateOrganizationEntityDto) {
     const payload = req.user as any;
     return this.entitiesService.createOrganizationEntity(payload.subscriberId, payload.sub, dto);
+  }
+
+  @Put(':entity_id/individual')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'manager')
+  @ApiOperation({ summary: 'Update individual entity profile', description: 'Updates all profile fields for an individual entity. Only provided fields will be updated.' })
+  @ApiParam({ name: 'entity_id', required: true, description: 'Entity UUID' })
+  @ApiResponse({ status: 200, description: 'Individual entity updated successfully' })
+  @ApiResponse({ status: 404, description: 'Entity not found or not an individual type' })
+  async updateIndividualEntity(
+    @Req() req: Request,
+    @Param('entity_id') entityId: string,
+    @Body() dto: UpdateIndividualEntityDto,
+  ) {
+    const payload = req.user as any;
+    return this.entitiesService.updateIndividualEntity(payload.subscriberId, entityId, payload.sub, dto);
+  }
+
+  @Put(':entity_id/organization')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'manager')
+  @ApiOperation({ summary: 'Update organization entity profile', description: 'Updates all profile fields for an organization entity. Only provided fields will be updated.' })
+  @ApiParam({ name: 'entity_id', required: true, description: 'Entity UUID' })
+  @ApiResponse({ status: 200, description: 'Organization entity updated successfully' })
+  @ApiResponse({ status: 404, description: 'Entity not found or not an organization type' })
+  async updateOrganizationEntity(
+    @Req() req: Request,
+    @Param('entity_id') entityId: string,
+    @Body() dto: UpdateOrganizationEntityDto,
+  ) {
+    const payload = req.user as any;
+    return this.entitiesService.updateOrganizationEntity(payload.subscriberId, entityId, payload.sub, dto);
   }
 
   // NOTE: addDocument endpoint commented out - method not implemented in EntitiesService

@@ -13,6 +13,7 @@ export interface EntityFilter extends BaseFilter {
   subscriber_id?: string;
   entity_type?: 'individual' | 'organization';
   status?: 'active' | 'inactive' | 'pending' | 'suspended' | 'archived';
+  statuses?: string[];  // Multi-select with OR logic
   risk_level?: 'low' | 'medium' | 'high' | 'critical';
   screening_status?: 'pending' | 'in_progress' | 'completed' | 'failed' | 'requires_review';
   onboarding_completed?: boolean;
@@ -21,6 +22,7 @@ export interface EntityFilter extends BaseFilter {
   name?: string;
   reference_number?: string;
   search?: string;
+  nationalities?: string[];  // Multi-select with OR logic
 }
 
 @Injectable()
@@ -299,6 +301,24 @@ export class EntityRepository extends BaseRepository<EntityEntity> {
 
     if (filters.status) {
       queryBuilder.andWhere('UPPER(entity.status) = UPPER(:status)', { status: filters.status });
+    }
+
+    // Multi-select statuses with OR logic
+    if (filters.statuses && filters.statuses.length > 0) {
+      queryBuilder.andWhere('UPPER(entity.status) IN (:...statuses)', { 
+        statuses: filters.statuses.map(s => s.toUpperCase()) 
+      });
+    }
+
+    // Multi-select nationalities with OR logic (JSONB array overlap)
+    if (filters.nationalities && filters.nationalities.length > 0) {
+      queryBuilder.andWhere(
+        new Brackets(qb => {
+          qb.where("individualEntity.nationality && ARRAY[:...nationalities]::text[]", { 
+            nationalities: filters.nationalities 
+          });
+        })
+      );
     }
 
     if (filters.risk_level) {

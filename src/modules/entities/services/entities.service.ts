@@ -22,6 +22,8 @@ import { CreateIndividualEntityDto } from '../dtos/create-individual-entity.dto'
 import { CreateOrganizationEntityDto } from '../dtos/create-organization-entity.dto';
 import { UpdateEntityDto } from '../dtos/update-entity.dto';
 import { UpdateEntityStatusDto } from '../dtos/update-entity-status.dto';
+import { UpdateIndividualEntityDto } from '../dtos/update-individual-entity.dto';
+import { UpdateOrganizationEntityDto } from '../dtos/update-organization-entity.dto';
 import { BulkActionDto } from '../dtos/bulk-action.dto';
 import { ExportEntitiesDto } from '../dtos/export-entities.dto';
 import { AddCustomFieldsDto } from '../dtos/add-custom-fields.dto';
@@ -55,12 +57,14 @@ export class EntitiesService {
         subscriber_id: subscriberId,
         entity_type: query.entity_type,
         status: query.status as any,
+        statuses: query.statuses,  // Multi-select with OR logic
         risk_level: query.risk_level as any,
         screening_status: query.screening_status as any,
         onboarding_completed: query.onboarding_completed,
         name: query.name,
         reference_number: query.reference_number,
         search: query.search,
+        nationalities: query.nationalities,  // Multi-select with OR logic
       },
       {
         page: query.page ?? 1,
@@ -486,6 +490,282 @@ export class EntitiesService {
       );
 
       return saved;
+    });
+  }
+
+  /**
+   * Update individual entity profile
+   * Updates both base entity and individual-specific fields
+   */
+  async updateIndividualEntity(subscriberId: string, entityId: string, userId: string, dto: UpdateIndividualEntityDto) {
+    return this.dataSource.transaction(async manager => {
+      const entityRepo = manager.getRepository((this.entityRepository as any).repository.target);
+      const individualRepo = manager.getRepository((this.individualEntityRepository as any).repository.target);
+
+      // Find base entity
+      const entity = await entityRepo.findOne({ where: { id: entityId, subscriber_id: subscriberId, is_active: true } });
+      if (!entity) throw new NotFoundException('Entity not found');
+      if (entity.entity_type !== 'individual') throw new BadRequestException('Entity is not an individual type');
+
+      // Find individual profile
+      const individual = await individualRepo.findOne({ where: { entity_id: entityId } });
+      if (!individual) throw new NotFoundException('Individual profile not found');
+
+      // Capture old values for history
+      const oldEntityValues: any = {};
+      const oldIndividualValues: any = {};
+      const changedFields: string[] = [];
+
+      // Update base entity fields
+      if (dto.name !== undefined && dto.name !== entity.name) {
+        oldEntityValues.name = entity.name;
+        entity.name = dto.name;
+        changedFields.push('name');
+      }
+      if (dto.risk_level !== undefined && dto.risk_level !== entity.risk_level) {
+        oldEntityValues.risk_level = entity.risk_level;
+        entity.risk_level = dto.risk_level;
+        changedFields.push('risk_level');
+      }
+      if (dto.screening_status !== undefined && dto.screening_status !== entity.screening_status) {
+        oldEntityValues.screening_status = entity.screening_status;
+        entity.screening_status = dto.screening_status;
+        changedFields.push('screening_status');
+      }
+      if (dto.onboarding_completed !== undefined && dto.onboarding_completed !== entity.onboarding_completed) {
+        oldEntityValues.onboarding_completed = entity.onboarding_completed;
+        entity.onboarding_completed = dto.onboarding_completed;
+        if (dto.onboarding_completed) entity.onboarded_at = new Date();
+        changedFields.push('onboarding_completed');
+      }
+
+      entity.updated_by = userId;
+
+      // Update individual-specific fields
+      if (dto.date_of_birth !== undefined) {
+        oldIndividualValues.date_of_birth = individual.date_of_birth;
+        individual.date_of_birth = new Date(dto.date_of_birth);
+        changedFields.push('date_of_birth');
+      }
+      if (dto.nationality !== undefined) {
+        oldIndividualValues.nationality = individual.nationality;
+        individual.nationality = dto.nationality;
+        changedFields.push('nationality');
+      }
+      if (dto.country_of_residence !== undefined) {
+        oldIndividualValues.country_of_residence = individual.country_of_residence;
+        individual.country_of_residence = dto.country_of_residence;
+        changedFields.push('country_of_residence');
+      }
+      if (dto.gender !== undefined) {
+        oldIndividualValues.gender = individual.gender;
+        individual.gender = dto.gender;
+        changedFields.push('gender');
+      }
+      if (dto.address !== undefined) {
+        oldIndividualValues.address = individual.address;
+        individual.address = dto.address;
+        changedFields.push('address');
+      }
+      if (dto.occupation !== undefined) {
+        oldIndividualValues.occupation = individual.occupation;
+        individual.occupation = dto.occupation;
+        changedFields.push('occupation');
+      }
+      if (dto.source_of_income !== undefined) {
+        oldIndividualValues.source_of_income = individual.source_of_income;
+        individual.source_of_income = dto.source_of_income;
+        changedFields.push('source_of_income');
+      }
+      if (dto.is_pep !== undefined) {
+        oldIndividualValues.is_pep = individual.is_pep;
+        individual.is_pep = dto.is_pep;
+        changedFields.push('is_pep');
+      }
+      if (dto.pep_details !== undefined) {
+        oldIndividualValues.pep_details = individual.pep_details;
+        individual.pep_details = dto.pep_details;
+        changedFields.push('pep_details');
+      }
+      if (dto.has_criminal_record !== undefined) {
+        oldIndividualValues.has_criminal_record = individual.has_criminal_record;
+        individual.has_criminal_record = dto.has_criminal_record;
+        changedFields.push('has_criminal_record');
+      }
+      if (dto.criminal_record_details !== undefined) {
+        oldIndividualValues.criminal_record_details = individual.criminal_record_details;
+        individual.criminal_record_details = dto.criminal_record_details;
+        changedFields.push('criminal_record_details');
+      }
+
+      // Save both records
+      const savedEntity = await entityRepo.save(entity);
+      const savedIndividual = await individualRepo.save(individual);
+
+      // Log history
+      if (changedFields.length > 0) {
+        await manager.getRepository((this.entityHistoryRepository as any).repository.target).save(
+          this.entityHistoryRepository.create({
+            entity_id: entityId,
+            changed_by: userId,
+            change_type: 'updated',
+            change_description: `Updated individual entity: ${changedFields.join(', ')}`,
+            old_values: { ...oldEntityValues, ...oldIndividualValues },
+            new_values: dto,
+            changed_fields: changedFields,
+          })
+        );
+      }
+
+      return { entity: savedEntity, individual: savedIndividual };
+    });
+  }
+
+  /**
+   * Update organization entity profile
+   * Updates both base entity and organization-specific fields
+   */
+  async updateOrganizationEntity(subscriberId: string, entityId: string, userId: string, dto: UpdateOrganizationEntityDto) {
+    return this.dataSource.transaction(async manager => {
+      const entityRepo = manager.getRepository((this.entityRepository as any).repository.target);
+      const orgRepo = manager.getRepository((this.organizationEntityRepository as any).repository.target);
+
+      // Find base entity
+      const entity = await entityRepo.findOne({ where: { id: entityId, subscriber_id: subscriberId, is_active: true } });
+      if (!entity) throw new NotFoundException('Entity not found');
+      if (entity.entity_type !== 'organization') throw new BadRequestException('Entity is not an organization type');
+
+      // Find organization profile
+      const organization = await orgRepo.findOne({ where: { entity_id: entityId } });
+      if (!organization) throw new NotFoundException('Organization profile not found');
+
+      // Capture old values for history
+      const oldEntityValues: any = {};
+      const oldOrgValues: any = {};
+      const changedFields: string[] = [];
+
+      // Update base entity fields
+      if (dto.name !== undefined && dto.name !== entity.name) {
+        oldEntityValues.name = entity.name;
+        entity.name = dto.name;
+        changedFields.push('name');
+      }
+      if (dto.risk_level !== undefined && dto.risk_level !== entity.risk_level) {
+        oldEntityValues.risk_level = entity.risk_level;
+        entity.risk_level = dto.risk_level;
+        changedFields.push('risk_level');
+      }
+      if (dto.screening_status !== undefined && dto.screening_status !== entity.screening_status) {
+        oldEntityValues.screening_status = entity.screening_status;
+        entity.screening_status = dto.screening_status;
+        changedFields.push('screening_status');
+      }
+      if (dto.onboarding_completed !== undefined && dto.onboarding_completed !== entity.onboarding_completed) {
+        oldEntityValues.onboarding_completed = entity.onboarding_completed;
+        entity.onboarding_completed = dto.onboarding_completed;
+        if (dto.onboarding_completed) entity.onboarded_at = new Date();
+        changedFields.push('onboarding_completed');
+      }
+
+      entity.updated_by = userId;
+
+      // Update organization-specific fields
+      if (dto.legal_name !== undefined) {
+        oldOrgValues.legal_name = organization.legal_name;
+        organization.legal_name = dto.legal_name;
+        changedFields.push('legal_name');
+      }
+      if (dto.trade_name !== undefined) {
+        oldOrgValues.trade_name = organization.trade_name;
+        organization.trade_name = dto.trade_name;
+        changedFields.push('trade_name');
+      }
+      if (dto.country_of_incorporation !== undefined) {
+        oldOrgValues.country_of_incorporation = organization.country_of_incorporation;
+        organization.country_of_incorporation = dto.country_of_incorporation;
+        changedFields.push('country_of_incorporation');
+      }
+      if (dto.date_of_incorporation !== undefined) {
+        oldOrgValues.date_of_incorporation = organization.date_of_incorporation;
+        organization.date_of_incorporation = new Date(dto.date_of_incorporation);
+        changedFields.push('date_of_incorporation');
+      }
+      if (dto.organization_type !== undefined) {
+        oldOrgValues.organization_type = organization.organization_type;
+        organization.organization_type = dto.organization_type;
+        changedFields.push('organization_type');
+      }
+      if (dto.legal_structure !== undefined) {
+        oldOrgValues.legal_structure = organization.legal_structure;
+        organization.legal_structure = dto.legal_structure;
+        changedFields.push('legal_structure');
+      }
+      if (dto.tax_identification_number !== undefined) {
+        oldOrgValues.tax_identification_number = organization.tax_identification_number;
+        organization.tax_identification_number = dto.tax_identification_number;
+        changedFields.push('tax_identification_number');
+      }
+      if (dto.commercial_registration_number !== undefined) {
+        oldOrgValues.commercial_registration_number = organization.commercial_registration_number;
+        organization.commercial_registration_number = dto.commercial_registration_number;
+        changedFields.push('commercial_registration_number');
+      }
+      if (dto.registered_address !== undefined) {
+        oldOrgValues.registered_address = organization.registered_address;
+        organization.registered_address = dto.registered_address;
+        changedFields.push('registered_address');
+      }
+      if (dto.operating_address !== undefined) {
+        oldOrgValues.operating_address = organization.operating_address;
+        organization.operating_address = dto.operating_address;
+        changedFields.push('operating_address');
+      }
+      if (dto.contact_email !== undefined) {
+        oldOrgValues.contact_email = organization.contact_email;
+        organization.contact_email = dto.contact_email;
+        changedFields.push('contact_email');
+      }
+      if (dto.contact_phone !== undefined) {
+        oldOrgValues.contact_phone = organization.contact_phone;
+        organization.contact_phone = dto.contact_phone;
+        changedFields.push('contact_phone');
+      }
+      if (dto.industry_sector !== undefined) {
+        oldOrgValues.industry_sector = organization.industry_sector;
+        organization.industry_sector = dto.industry_sector;
+        changedFields.push('industry_sector');
+      }
+      if (dto.number_of_employees !== undefined) {
+        oldOrgValues.number_of_employees = organization.number_of_employees;
+        organization.number_of_employees = dto.number_of_employees;
+        changedFields.push('number_of_employees');
+      }
+      if (dto.annual_revenue !== undefined) {
+        oldOrgValues.annual_revenue = organization.annual_revenue;
+        organization.annual_revenue = String(dto.annual_revenue);
+        changedFields.push('annual_revenue');
+      }
+
+      // Save both records
+      const savedEntity = await entityRepo.save(entity);
+      const savedOrganization = await orgRepo.save(organization);
+
+      // Log history
+      if (changedFields.length > 0) {
+        await manager.getRepository((this.entityHistoryRepository as any).repository.target).save(
+          this.entityHistoryRepository.create({
+            entity_id: entityId,
+            changed_by: userId,
+            change_type: 'updated',
+            change_description: `Updated organization entity: ${changedFields.join(', ')}`,
+            old_values: { ...oldEntityValues, ...oldOrgValues },
+            new_values: dto,
+            changed_fields: changedFields,
+          })
+        );
+      }
+
+      return { entity: savedEntity, organization: savedOrganization };
     });
   }
 

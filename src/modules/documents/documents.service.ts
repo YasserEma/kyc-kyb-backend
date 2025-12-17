@@ -186,4 +186,92 @@ export class DocumentsService {
 
     return this.documentRepository.save(doc);
   }
+
+  /**
+   * Get a document by ID
+   */
+  async getDocumentById(subscriberId: string, documentId: string) {
+    const doc = await this.documentRepository.findOne({
+      where: { id: documentId, subscriber_id: subscriberId, is_active: true }
+    });
+    if (!doc) throw new NotFoundException('Document not found');
+    return doc;
+  }
+
+  /**
+   * Update document metadata (not the file itself)
+   */
+  async updateDocument(
+    subscriberId: string,
+    documentId: string,
+    userId: string,
+    dto: {
+      name?: string;
+      description?: string;
+      expiry_date?: string;
+      document_status?: string;
+      verification_status?: string;
+      metadata?: Record<string, any>;
+    }
+  ) {
+    const doc = await this.documentRepository.findOne({
+      where: { id: documentId, subscriber_id: subscriberId, is_active: true }
+    });
+    if (!doc) throw new NotFoundException('Document not found');
+
+    // Update fields if provided
+    if (dto.name !== undefined) doc.document_name = dto.name;
+    if (dto.description !== undefined) doc.document_description = dto.description;
+    if (dto.expiry_date !== undefined) doc.expiry_date = new Date(dto.expiry_date);
+    if (dto.document_status !== undefined) (doc as any).document_status = dto.document_status;
+    if (dto.verification_status !== undefined) (doc as any).verification_status = dto.verification_status;
+    if (dto.metadata !== undefined) doc.metadata = dto.metadata;
+    
+    doc.updated_by = userId;
+    doc.updated_at = new Date();
+
+    return this.documentRepository.save(doc);
+  }
+
+  /**
+   * Soft delete a document
+   */
+  async deleteDocument(subscriberId: string, documentId: string, userId: string) {
+    const doc = await this.documentRepository.findOne({
+      where: { id: documentId, subscriber_id: subscriberId, is_active: true }
+    });
+    if (!doc) throw new NotFoundException('Document not found');
+
+    doc.is_active = false;
+    doc.deleted_at = new Date();
+    doc.updated_by = userId;
+
+    await this.documentRepository.save(doc);
+    return { message: 'Document deleted successfully', id: documentId };
+  }
+
+  /**
+   * Verify a document (mark as verified/rejected)
+   */
+  async verifyDocument(
+    subscriberId: string,
+    documentId: string,
+    userId: string,
+    dto: { verification_status: 'verified' | 'rejected' | 'pending'; notes?: string }
+  ) {
+    const doc = await this.documentRepository.findOne({
+      where: { id: documentId, subscriber_id: subscriberId, is_active: true }
+    });
+    if (!doc) throw new NotFoundException('Document not found');
+
+    (doc as any).verification_status = dto.verification_status;
+    doc.verified_by = userId;
+    doc.updated_by = userId;
+    
+    if (dto.notes) {
+      doc.metadata = { ...(doc.metadata || {}), verification_notes: dto.notes };
+    }
+
+    return this.documentRepository.save(doc);
+  }
 }

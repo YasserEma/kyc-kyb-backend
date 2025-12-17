@@ -11,6 +11,7 @@ import { EntitiesModule } from './modules/entities/entities.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { DocumentConfigurationsModule } from './modules/document-configurations/document-configurations.module';
 import { EntityRelationshipsModule } from './modules/entity-relationships/entity-relationships.module';
+import { LookupsModule } from './modules/lookups/lookups.module';
 
 const shouldInitDb = process.env.SKIP_DB !== 'true';
 const typeOrmImports = shouldInitDb
@@ -56,6 +57,7 @@ const typeOrmImports = shouldInitDb
     DocumentsModule,
     EntityRelationshipsModule,
     DocumentConfigurationsModule,
+    LookupsModule,
   ],
 })
 export class AppModule { }
