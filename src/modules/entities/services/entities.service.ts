@@ -29,8 +29,7 @@ import { ExportEntitiesDto } from '../dtos/export-entities.dto';
 import { AddCustomFieldsDto } from '../dtos/add-custom-fields.dto';
 
 import { EntityRelationshipRepository } from '../../entity-relationships/repositories/entity-relationship.repository';
-
-// ... (existing imports)
+import { LogsService } from '../../logs/logs.service';
 
 @Injectable()
 export class EntitiesService {
@@ -49,6 +48,7 @@ export class EntitiesService {
     private readonly entityRelationshipRepository: EntityRelationshipRepository,
     private readonly configService: ConfigService,
     private readonly storageService: LocalStorageService,
+    private readonly logsService: LogsService,
   ) { }
 
   async listEntities(subscriberId: string, query: ListEntitiesQueryDto) {
@@ -257,6 +257,17 @@ export class EntitiesService {
         // Placeholder orchestration: create pending screening and risk entries if needed
         // Skipping actual creation to avoid schema assumptions; repositories expose filters for later queries.
 
+        // Log entity creation
+        this.logsService.logEntityAction({
+          subscriberId,
+          userId,
+          entityId: savedEntity.id,
+          actionType: 'ENTITY_CREATED',
+          entityType: 'individual',
+          entityName: dto.name,
+          metadata: { reference_number: referenceNumber },
+        }).catch(err => console.error('Failed to log entity creation:', err));
+
         return savedEntity;
       });
     } catch (err: any) {
@@ -412,6 +423,17 @@ export class EntitiesService {
           })
         );
 
+        // Log entity creation
+        this.logsService.logEntityAction({
+          subscriberId,
+          userId,
+          entityId: savedEntity.id,
+          actionType: 'ENTITY_CREATED',
+          entityType: 'organization',
+          entityName: dto.name,
+          metadata: { reference_number: referenceNumber, legal_name: dto.legal_name },
+        }).catch(err => console.error('Failed to log entity creation:', err));
+
         return savedEntity;
       });
     } catch (err: any) {
@@ -488,6 +510,17 @@ export class EntitiesService {
           change_reason: dto.reason,
         })
       );
+
+      // Log status change
+      this.logsService.logEntityAction({
+        subscriberId,
+        userId,
+        entityId,
+        actionType: 'ENTITY_STATUS_CHANGED',
+        entityType: existing.entity_type as 'individual' | 'organization',
+        entityName: existing.name,
+        metadata: { old_status: oldStatus, new_status: existing.status, reason: dto.reason },
+      }).catch(err => console.error('Failed to log status change:', err));
 
       return saved;
     });

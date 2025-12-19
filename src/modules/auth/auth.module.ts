@@ -12,6 +12,7 @@ import { GoogleOAuthGuard } from './guards/google-oauth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { SubscribersModule } from '../subscribers/subscribers.module';
 import { SubscriberUsersModule } from '../subscriber-users/subscriber-users.module';
+import { LogsModule } from '../logs/logs.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { SubscriberUsersModule } from '../subscriber-users/subscriber-users.modu
     }),
     SubscribersModule,
     SubscriberUsersModule,
+    LogsModule,
   ],
   controllers: [AuthController],
   providers: [

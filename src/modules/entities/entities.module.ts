@@ -33,6 +33,7 @@ import { DocumentsService } from '../documents/documents.service';
 import { LocalStorageService } from '../common/services/local-storage.service';
 
 import { AuthModule } from '../auth/auth.module';
+import { LogsModule } from '../logs/logs.module';
 
 import { EntityRelationship } from '../entity-relationships/entities/entity-relationship.entity';
 import { EntityRelationshipRepository } from '../entity-relationships/repositories/entity-relationship.repository';
@@ -53,6 +54,7 @@ import { EntityRelationshipRepository } from '../entity-relationships/repositori
     ]),
     IndividualIdentityDocumentsModule,
     forwardRef(() => AuthModule),
+    LogsModule,
   ],
   controllers: [EntitiesController, DocumentsController],
   providers: [

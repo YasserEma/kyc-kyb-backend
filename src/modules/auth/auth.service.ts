@@ -28,6 +28,7 @@ import {
   RefreshTokenResponseDto,
   MessageResponseDto,
 } from './dto/auth-response.dto';
+import { LogsService } from '../logs/logs.service';
 
 @Injectable()
 export class AuthService {
@@ -39,6 +40,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailService: EmailService,
+    private logsService: LogsService,
   ) {}
 
   async registerSubscriber(dto: RegisterSubscriberDto): Promise<RegisterResponseDto> {
@@ -107,6 +109,15 @@ export class AuthService {
 
       this.logger.log(`New subscriber registered: ${savedSubscriber.id} with admin user: ${savedAdminUser.id}`);
 
+      // Log the registration
+      this.logsService.logAuthAction({
+        subscriberId: savedSubscriber.id,
+        userId: savedAdminUser.id,
+        actionType: 'USER_REGISTERED',
+        email: normalizedEmail,
+        metadata: { company_name: dto.companyName, admin_name: dto.adminName },
+      }).catch(err => console.error('Failed to log registration:', err));
+
       return {
         message: 'Subscriber registered successfully',
       };
@@ -159,6 +170,16 @@ export class AuthService {
       if (!isPasswordValid) {
         // Increment failed login attempts
         await this.subscriberUserRepository.incrementFailedLoginAttempts(user.id);
+        
+        // Log failed login attempt
+        this.logsService.logAuthAction({
+          subscriberId: user.subscriber_id,
+          userId: user.id,
+          actionType: 'USER_LOGIN_FAILED',
+          email: dto.email,
+          status: 'failure',
+        }).catch(err => console.error('Failed to log failed login:', err));
+        
         throw new UnauthorizedException('Invalid credentials');
       }
 
@@ -200,7 +221,7 @@ export class AuthService {
 
       const expiresIn = this.parseExpirationTime(this.configService.get<string>('JWT_ACCESS_EXPIRATION') || '1h');
 
-      return {
+      const loginResponse: LoginResponseDto = {
         access_token: accessToken,
         refresh_token: refreshToken,
         expires_in: expiresIn,
@@ -218,6 +239,16 @@ export class AuthService {
           },
         },
       };
+
+      // Log successful login
+      this.logsService.logAuthAction({
+        subscriberId: user.subscriber_id,
+        userId: user.id,
+        actionType: 'USER_LOGIN',
+        email: user.email,
+      }).catch(err => console.error('Failed to log login:', err));
+
+      return loginResponse;
     } catch (error) {
       if (error instanceof NotFoundException || error instanceof ForbiddenException || error instanceof UnauthorizedException) {
         throw error;
