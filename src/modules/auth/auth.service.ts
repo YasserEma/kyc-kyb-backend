@@ -10,9 +10,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { IsNull, QueryFailedError } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource, IsNull, QueryFailedError } from 'typeorm';
 import { SubscriberRepository } from '../subscribers/repositories/subscriber.repository';
 import { SubscriberUserRepository } from '../subscriber-users/repositories/subscriber-user.repository';
 import { EmailService } from './email/email.service';
@@ -29,6 +30,7 @@ import {
   MessageResponseDto,
 } from './dto/auth-response.dto';
 import { LogsService } from '../logs/logs.service';
+import { seedDefaultListsForSubscriber } from '../../database/seeders/20-system-lookups.seeder';
 
 @Injectable()
 export class AuthService {
@@ -41,6 +43,7 @@ export class AuthService {
     private configService: ConfigService,
     private emailService: EmailService,
     private logsService: LogsService,
+    @InjectDataSource() private dataSource: DataSource,
   ) {}
 
   async registerSubscriber(dto: RegisterSubscriberDto): Promise<RegisterResponseDto> {
@@ -108,6 +111,15 @@ export class AuthService {
       }
 
       this.logger.log(`New subscriber registered: ${savedSubscriber.id} with admin user: ${savedAdminUser.id}`);
+
+      // Auto-seed default lists for the new subscriber (tenant isolation)
+      try {
+        await seedDefaultListsForSubscriber(this.dataSource, savedSubscriber.id, dto.companyName);
+        this.logger.log(`Default lists seeded for subscriber: ${savedSubscriber.id}`);
+      } catch (seedError) {
+        this.logger.error(`Failed to seed default lists for ${savedSubscriber.id}`, seedError);
+        // Don't fail registration if seeding fails
+      }
 
       // Log the registration
       this.logsService.logAuthAction({

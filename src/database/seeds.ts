@@ -20,6 +20,7 @@ import { seedOrganizationAssociations } from './seeders/16-organization-associat
 import { seedDocuments } from './seeders/17-documents.seeder';
 import { seedScreeningAnalysis } from './seeders/18-screening-analysis.seeder';
 import { seedWizardTestingData } from './seeders/19-wizard-testing.seeder';
+import { seedSystemLookups } from './seeders/20-system-lookups.seeder';
 
 async function runSeeds() {
   await AppDataSource.initialize();
@@ -39,8 +40,12 @@ async function runSeeds() {
     await seedRiskConfiguration(AppDataSource);
     console.log('Seeding: lists management');
     await seedListsManagement(AppDataSource);
-    console.log('Seeding: list values');
-    await seedListValues(AppDataSource);
+    // NOTE: seedListValues is skipped - uses wrong column names (value_name, value_code)
+    // The 20-system-lookups.seeder.ts handles all lookup values with correct columns
+    // console.log('Seeding: list values');
+    // await seedListValues(AppDataSource);
+    console.log('Seeding: system lookups (global + tenant)');
+    await seedSystemLookups(AppDataSource);
     console.log('Seeding: screening config values');
     await seedScreeningConfigValues(AppDataSource);
     

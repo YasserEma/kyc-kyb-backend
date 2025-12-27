@@ -27,9 +27,11 @@ export class ListsManagementService {
   // ============================================
 
   /**
-   * Get all lists for the subscriber with pagination and filters
+   * Get all lists for the subscriber with pagination and filters.
+   * TENANT ISOLATION: Only returns lists belonging to this subscriber.
    */
   async getLists(subscriberId: string, query: ListQueryDto) {
+    // Build filters for subscriber's lists only
     const filters: any = {
       subscriber_id: subscriberId,
     };
@@ -57,6 +59,7 @@ export class ListsManagementService {
       sortOrder: query.sort_order || 'DESC',
     };
 
+    // Fetch only this subscriber's lists
     const result = await this.listRepository.findWithFilters(filters, pagination);
 
     // Optionally include list values
@@ -67,6 +70,7 @@ export class ListsManagementService {
       }
     }
 
+    // Result already has correct PaginationResult format
     return result;
   }
 
@@ -189,7 +193,7 @@ export class ListsManagementService {
     listId: string,
     activeOnly: boolean = false,
   ) {
-    // Verify list ownership
+    // Verify list belongs to this subscriber (tenant isolation)
     await this.getListById(subscriberId, listId, false);
 
     const filters: any = {};
@@ -209,8 +213,24 @@ export class ListsManagementService {
     userId: string,
     dto: CreateListValueDto,
   ): Promise<ListValueEntity> {
-    // Verify list ownership
-    await this.getListById(subscriberId, listId, false);
+    // Verify list ownership or global list access
+    const list = await this.getListById(subscriberId, listId, false);
+
+    // Check if list is readonly (global system lists)
+    if (list.is_readonly) {
+      throw new ForbiddenException(`Cannot modify readonly system list "${list.list_name}"`);
+    }
+
+    // Check for existing value with same name in this list
+    const existingValue = await this.listValueRepository.findOne({
+      where: { list_id: listId, value: dto.value },
+    });
+
+    if (existingValue) {
+      throw new ForbiddenException(
+        `Value "${dto.value}" already exists in list "${list.list_name}". Use a different value or update the existing one.`
+      );
+    }
 
     const value = this.listValueRepository.create({
       list_id: listId,
@@ -242,7 +262,7 @@ export class ListsManagementService {
     userId: string,
     dto: UpdateListValueDto,
   ): Promise<ListValueEntity> {
-    // Verify list ownership
+    // Verify list ownership or global list access
     await this.getListById(subscriberId, listId, false);
 
     // Verify value exists and belongs to the list
@@ -276,7 +296,7 @@ export class ListsManagementService {
     listId: string,
     valueId: string,
   ): Promise<{ success: boolean; message: string }> {
-    // Verify list ownership
+    // Verify list ownership or global list access
     await this.getListById(subscriberId, listId, false);
 
     // Verify value exists and belongs to the list
@@ -309,7 +329,7 @@ export class ListsManagementService {
     valueId: string,
     isActive: boolean,
   ): Promise<ListValueEntity> {
-    // Verify list ownership
+    // Verify list ownership or global list access
     await this.getListById(subscriberId, listId, false);
 
     // Verify value exists
@@ -410,7 +430,7 @@ export class ListsManagementService {
     userId: string,
     values: CreateListValueDto[],
   ): Promise<{ created: number; errors: string[] }> {
-    // Verify list ownership
+    // Verify list ownership or global list access
     await this.getListById(subscriberId, listId, false);
 
     let created = 0;
