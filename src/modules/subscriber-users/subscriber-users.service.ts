@@ -103,36 +103,55 @@ export class SubscriberUsersService {
 
   async createUser(subscriberId: string, adminUserId: string, dto: CreateUserDto) {
     const normalizedEmail = dto.email.toLowerCase();
-    const existing = await this.subscriberUserRepository.findOne({
-      where: { email: normalizedEmail, subscriber_id: subscriberId } as any,
-    });
+    
+    // Check for existing user (including soft-deleted ones due to DB constraint)
+    const existing = await this.subscriberUserRepository
+      .createQueryBuilder('user')
+      .withDeleted() // Include soft-deleted records
+      .where('user.email = :email', { email: normalizedEmail })
+      .andWhere('user.subscriber_id = :subscriberId', { subscriberId })
+      .getOne();
+    
     if (existing) {
+      if (existing.deleted_at) {
+        throw new BadRequestException(
+          'A user with this email was previously deleted. Please contact support to restore the account or use a different email.'
+        );
+      }
       throw new BadRequestException('Email already exists for this subscriber');
     }
 
     const tempPassword = Math.random().toString(36).slice(-10);
     const passwordHash = await bcrypt.hash(tempPassword, 12);
 
-    const newUser = await this.subscriberUserRepository.create({
-      subscriber_id: subscriberId,
-      first_name: dto.first_name,
-      last_name: dto.last_name,
-      email: normalizedEmail,
-      password_hash: passwordHash,
-      role: dto.role,
-      status: dto.status ?? 'pending',
-      department: dto.department,
-      job_title: dto.job_title,
-      is_active: true,
-    } as any);
+    try {
+      const newUser = await this.subscriberUserRepository.create({
+        subscriber_id: subscriberId,
+        first_name: dto.first_name,
+        last_name: dto.last_name,
+        email: normalizedEmail,
+        password_hash: passwordHash,
+        role: dto.role,
+        status: dto.status ?? 'pending',
+        department: dto.department,
+        job_title: dto.job_title,
+        is_active: true,
+      } as any);
 
-    const saved = await this.subscriberUserRepository.save(newUser);
+      const saved = await this.subscriberUserRepository.save(newUser);
 
-    if (dto.send_invitation_email) {
-      await this.emailService.sendNewUserInvitation(saved.email, saved.full_name, tempPassword);
+      if (dto.send_invitation_email) {
+        await this.emailService.sendNewUserInvitation(saved.email, saved.full_name, tempPassword);
+      }
+
+      return saved;
+    } catch (error: any) {
+      // Handle unique constraint violation
+      if (error.code === '23505' || error.detail?.includes('already exists')) {
+        throw new BadRequestException('Email already exists for this subscriber');
+      }
+      throw error;
     }
-
-    return saved;
   }
 
   async updateUser(subscriberId: string, userId: string, dto: UpdateUserDto) {

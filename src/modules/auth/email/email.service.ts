@@ -65,7 +65,7 @@ export class EmailService {
       from: this.configService.get<string>('NODEMAILER_EMAIL'),
       to: email,
       subject: `Your KYC Platform Account Invitation`,
-      html: this.getInvitationTemplate(fullName, loginUrl, temporaryPassword),
+      html: this.getInvitationTemplate(fullName, email, loginUrl, temporaryPassword),
     };
 
     try {
@@ -212,7 +212,7 @@ export class EmailService {
     `;
   }
 
-  private getInvitationTemplate(fullName: string, loginUrl: string, temporaryPassword: string): string {
+  private getInvitationTemplate(fullName: string, userEmail: string, loginUrl: string, temporaryPassword: string): string {
     return `
       <!DOCTYPE html>
       <html>
@@ -226,7 +226,10 @@ export class EmailService {
           .content { padding: 20px; }
           .button { display: inline-block; padding: 12px 24px; background-color: #0069d9; color: white; text-decoration: none; border-radius: 4px; margin: 20px 0; }
           .footer { background-color: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666; }
-          .code { font-family: monospace; background: #f1f3f5; padding: 8px 12px; border-radius: 4px; }
+          .credentials { background: #f1f3f5; padding: 15px; border-radius: 8px; margin: 20px 0; }
+          .credentials-item { margin: 10px 0; }
+          .credentials-label { font-weight: bold; color: #555; }
+          .credentials-value { font-family: monospace; background: #e9ecef; padding: 4px 8px; border-radius: 4px; }
         </style>
       </head>
       <body>
@@ -237,10 +240,19 @@ export class EmailService {
           <div class=\"content\">
             <p>Hello <strong>${fullName}</strong>,</p>
             <p>Your administrator has created an account for you on the KYC Platform.</p>
-            <p>Use the temporary password below to sign in and set your own password:</p>
-            <p class=\"code\">${temporaryPassword}</p>
+            <p>Here are your login credentials:</p>
+            <div class=\"credentials\">
+              <div class=\"credentials-item\">
+                <span class=\"credentials-label\">Email:</span>
+                <span class=\"credentials-value\">${userEmail}</span>
+              </div>
+              <div class=\"credentials-item\">
+                <span class=\"credentials-label\">Temporary Password:</span>
+                <span class=\"credentials-value\">${temporaryPassword}</span>
+              </div>
+            </div>
             <p style=\"text-align: center;\"><a href=\"${loginUrl}\" class=\"button\">Login to Dashboard</a></p>
-            <p>For security, please change your password after your first login.</p>
+            <p><strong>⚠️ Important:</strong> For security, please change your password after your first login.</p>
             <p>Best regards,<br>The KYC Platform Team</p>
           </div>
           <div class=\"footer\">
