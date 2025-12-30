@@ -1,160 +1,253 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 import { LookupItemDto } from './dto/lookup-response.dto';
-import { NATIONALITIES } from './data/nationalities.data';
 
+/**
+ * LookupsService - Database-Only Mode
+ * 
+ * This service fetches lookup data ONLY from the database.
+ * If no data exists (e.g., seeders haven't run), it returns empty arrays.
+ * 
+ * Lookup Hierarchy:
+ * 1. Tenant-specific list (if subscriberId provided)
+ * 2. Global system list (is_system_list = true)
+ * 3. Empty array (no data found)
+ */
 @Injectable()
-export class LookupsService {
-  /**
-   * Entity Types (KYC/KYB)
-   */
-  getEntityTypes(): LookupItemDto[] {
-    return [
-      { value: 'INDIVIDUAL', label: 'Individual', description: 'Natural person (KYC)' },
-      { value: 'ORGANIZATION', label: 'Organization', description: 'Business entity (KYB)' },
-    ];
+export class LookupsService implements OnModuleInit {
+  // In-memory cache for performance
+  private globalCache = new Map<string, LookupItemDto[]>();
+  private tenantCache = new Map<string, LookupItemDto[]>();
+  private cacheTimestamps = new Map<string, number>();
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+  constructor(private readonly dataSource: DataSource) {}
+
+  async onModuleInit(): Promise<void> {
+    // Pre-warm cache for global lists on startup
+    try {
+      await this.warmGlobalCache();
+    } catch (error) {
+      const err = error as Error;
+      console.warn('Failed to warm global cache, will load on demand:', err.message);
+    }
   }
 
   /**
-   * Entity Statuses (Workflow states)
+   * Pre-warm cache with global lists
    */
-  getStatuses(): LookupItemDto[] {
-    return [
-      { value: 'PENDING', label: 'Pending', description: 'Awaiting review' },
-      { value: 'ACTIVE', label: 'Active', description: 'Verified and active' },
-      { value: 'INACTIVE', label: 'Inactive', description: 'Temporarily disabled' },
-      { value: 'BLOCKED', label: 'Blocked', description: 'Access denied due to risk' },
-      { value: 'ARCHIVED', label: 'Archived', description: 'Historical record' },
+  private async warmGlobalCache(): Promise<void> {
+    const globalListNames = [
+      'Entity Types',
+      'Nationalities',
+      'Genders',
+      'Organization Types',
+      'Document Types',
+      'Individual Relationship Types',
+      'Organization Relationship Types',
+      'Association Types',
     ];
+
+    for (const listName of globalListNames) {
+      const result = await this.queryListValues(listName, null);
+      if (result.length > 0) {
+        this.globalCache.set(listName, result);
+        this.cacheTimestamps.set(`global:${listName}`, Date.now());
+      }
+    }
+    console.log('Global lookup cache warmed');
   }
 
   /**
-   * Nationalities (ISO 3166-1 Alpha-2 Country Codes)
+   * Clear all caches
    */
-  getNationalities(): LookupItemDto[] {
-    return NATIONALITIES;
+  clearCache(): void {
+    this.globalCache.clear();
+    this.tenantCache.clear();
+    this.cacheTimestamps.clear();
   }
 
   /**
-   * Gender Options
+   * Clear cache for specific list
    */
-  getGenders(): LookupItemDto[] {
-    return [
-      { value: 'MALE', label: 'Male' },
-      { value: 'FEMALE', label: 'Female' },
-      { value: 'OTHER', label: 'Other' },
-      { value: 'PREFER_NOT_TO_SAY', label: 'Prefer not to say' },
-    ];
+  clearCacheForList(listName: string, subscriberId?: string): void {
+    if (subscriberId) {
+      this.tenantCache.delete(`${listName}:${subscriberId}`);
+      this.cacheTimestamps.delete(`tenant:${listName}:${subscriberId}`);
+    } else {
+      this.globalCache.delete(listName);
+      this.cacheTimestamps.delete(`global:${listName}`);
+    }
   }
 
   /**
-   * Risk Levels
+   * Check if cache entry is still valid
    */
-  getRiskLevels(): LookupItemDto[] {
-    return [
-      { value: 'LOW', label: 'Low', description: 'Minimal risk indicators' },
-      { value: 'MEDIUM', label: 'Medium', description: 'Some risk factors present' },
-      { value: 'HIGH', label: 'High', description: 'Significant risk indicators' },
-      { value: 'CRITICAL', label: 'Critical', description: 'Severe risk - immediate action required' },
-    ];
+  private isCacheValid(cacheKey: string): boolean {
+    const timestamp = this.cacheTimestamps.get(cacheKey);
+    if (!timestamp) return false;
+    return Date.now() - timestamp < this.CACHE_TTL;
   }
 
   /**
-   * Screening Statuses
+   * Core lookup method - TENANT ISOLATION
+   * Returns subscriber-specific lookup values only.
+   * No global fallback - each tenant has their own data.
    */
-  getScreeningStatuses(): LookupItemDto[] {
-    return [
-      { value: 'CLEAR', label: 'Clear', description: 'No matches found' },
-      { value: 'MATCH', label: 'Match', description: 'Potential match found' },
-      { value: 'PENDING_REVIEW', label: 'Pending Review', description: 'Awaiting manual review' },
-      { value: 'APPROVED', label: 'Approved', description: 'Reviewed and approved' },
-      { value: 'REJECTED', label: 'Rejected', description: 'Reviewed and rejected' },
-    ];
+  private async getLookupByName(
+    listName: string,
+    subscriberId?: string,
+  ): Promise<LookupItemDto[]> {
+    // SubscriberId is now required for tenant isolation
+    if (!subscriberId) {
+      console.warn(`getLookupByName called without subscriberId for ${listName}`);
+      return [];
+    }
+
+    const tenantCacheKey = `${listName}:${subscriberId}`;
+    const tenantTimestampKey = `tenant:${tenantCacheKey}`;
+
+    // Check tenant cache
+    if (this.tenantCache.has(tenantCacheKey) && this.isCacheValid(tenantTimestampKey)) {
+      return this.tenantCache.get(tenantCacheKey)!;
+    }
+
+    // Query tenant-specific list
+    const tenantResult = await this.queryListValues(listName, subscriberId);
+    if (tenantResult.length > 0) {
+      this.tenantCache.set(tenantCacheKey, tenantResult);
+      this.cacheTimestamps.set(tenantTimestampKey, Date.now());
+    }
+    
+    return tenantResult;
   }
 
   /**
-   * Organization Types
+   * Query list values from database
+   * For global lists: queries where is_system_list = true
+   * For tenant lists: queries where subscriber_id = given subscriberId
    */
-  getOrganizationTypes(): LookupItemDto[] {
-    return [
-      { value: 'CORPORATION', label: 'Corporation', description: 'Limited liability company' },
-      { value: 'LLC', label: 'LLC', description: 'Limited Liability Company' },
-      { value: 'PARTNERSHIP', label: 'Partnership', description: 'Business partnership' },
-      { value: 'SOLE_PROPRIETORSHIP', label: 'Sole Proprietorship', description: 'Individual-owned business' },
-      { value: 'NGO', label: 'NGO', description: 'Non-Governmental Organization' },
-      { value: 'TRUST', label: 'Trust', description: 'Legal trust arrangement' },
-      { value: 'FOUNDATION', label: 'Foundation', description: 'Charitable foundation' },
-      { value: 'GOVERNMENT', label: 'Government', description: 'Government entity' },
-      { value: 'OTHER', label: 'Other', description: 'Other organization type' },
-    ];
+  private async queryListValues(
+    listName: string,
+    subscriberId: string | null,
+  ): Promise<LookupItemDto[]> {
+    try {
+      // For tenant-specific queries, use subscriber_id
+      // For global queries (subscriberId === null), use is_system_list = true
+      const query = subscriberId
+        ? `
+          SELECT lv.value, lv.normalized_value, lv.description
+          FROM list_values lv
+          INNER JOIN lists_management lm ON lm.id = lv.list_id
+          WHERE lm.list_name = $1
+            AND lm.subscriber_id = $2
+            AND lm.is_active = true
+            AND lv.is_active = true
+          ORDER BY lv.normalized_value ASC
+        `
+        : `
+          SELECT lv.value, lv.normalized_value, lv.description
+          FROM list_values lv
+          INNER JOIN lists_management lm ON lm.id = lv.list_id
+          WHERE lm.list_name = $1
+            AND lm.is_system_list = true
+            AND lm.is_active = true
+            AND lv.is_active = true
+          ORDER BY lv.normalized_value ASC
+        `;
+
+      const params = subscriberId ? [listName, subscriberId] : [listName];
+      const rows = await this.dataSource.query(query, params);
+
+      return rows.map((row: any) => ({
+        value: row.value,
+        label: row.normalized_value || row.value,
+        description: row.description || undefined,
+      }));
+    } catch (error) {
+      const err = error as Error;
+      console.error(`Error querying list "${listName}":`, err.message);
+      return [];
+    }
+  }
+
+  // ==================== PUBLIC LOOKUP METHODS ====================
+  // All methods return ONLY database data, empty array if not found
+
+  /**
+   * Entity Types - Global List
+   */
+  async getEntityTypes(subscriberId?: string): Promise<LookupItemDto[]> {
+    return this.getLookupByName('Entity Types', subscriberId);
   }
 
   /**
-   * Document Types
+   * Entity Statuses - Tenant List
    */
-  getDocumentTypes(): LookupItemDto[] {
-    return [
-      { value: 'PASSPORT', label: 'Passport', description: 'International passport' },
-      { value: 'NATIONAL_ID', label: 'National ID', description: 'National identity card' },
-      { value: 'DRIVERS_LICENSE', label: 'Drivers License', description: 'Government-issued driving license' },
-      { value: 'UTILITY_BILL', label: 'Utility Bill', description: 'Proof of address document' },
-      { value: 'BANK_STATEMENT', label: 'Bank Statement', description: 'Financial statement' },
-      { value: 'ARTICLES_OF_INCORPORATION', label: 'Articles of Incorporation', description: 'Company registration document' },
-      { value: 'TAX_CERTIFICATE', label: 'Tax Certificate', description: 'Tax registration certificate' },
-      { value: 'COMMERCIAL_LICENSE', label: 'Commercial License', description: 'Business operating license' },
-      { value: 'PROOF_OF_ADDRESS', label: 'Proof of Address', description: 'Address verification document' },
-      { value: 'OTHER', label: 'Other', description: 'Other document type' },
-    ];
+  async getStatuses(subscriberId?: string): Promise<LookupItemDto[]> {
+    return this.getLookupByName('Entity Statuses', subscriberId);
   }
 
   /**
-   * Relationship Types (Individual-to-Individual)
+   * Nationalities (ISO 3166-1 Alpha-2) - Global List
    */
-  getIndividualRelationshipTypes(): LookupItemDto[] {
-    return [
-      { value: 'SPOUSE', label: 'Spouse', description: 'Married partner' },
-      { value: 'CHILD', label: 'Child', description: 'Son or daughter' },
-      { value: 'PARENT', label: 'Parent', description: 'Mother or father' },
-      { value: 'SIBLING', label: 'Sibling', description: 'Brother or sister' },
-      { value: 'RELATIVE', label: 'Relative', description: 'Other family member' },
-      { value: 'BUSINESS_PARTNER', label: 'Business Partner', description: 'Joint business interest' },
-      { value: 'ASSOCIATE', label: 'Associate', description: 'Known associate' },
-      { value: 'GUARDIAN', label: 'Guardian', description: 'Legal guardian' },
-      { value: 'BENEFICIARY', label: 'Beneficiary', description: 'Named beneficiary' },
-    ];
+  async getNationalities(subscriberId?: string): Promise<LookupItemDto[]> {
+    return this.getLookupByName('Nationalities', subscriberId);
   }
 
   /**
-   * Organization Relationship Types
+   * Gender Options - Global List
    */
-  getOrganizationRelationshipTypes(): LookupItemDto[] {
-    return [
-      { value: 'PARENT', label: 'Parent Company', description: 'Parent organization' },
-      { value: 'SUBSIDIARY', label: 'Subsidiary', description: 'Owned subsidiary' },
-      { value: 'AFFILIATE', label: 'Affiliate', description: 'Affiliated organization' },
-      { value: 'JOINT_VENTURE', label: 'Joint Venture', description: 'Joint venture partner' },
-      { value: 'BRANCH', label: 'Branch', description: 'Regional branch office' },
-      { value: 'SISTER_COMPANY', label: 'Sister Company', description: 'Related company' },
-      { value: 'PARTNER', label: 'Partner', description: 'Business partner' },
-    ];
+  async getGenders(subscriberId?: string): Promise<LookupItemDto[]> {
+    return this.getLookupByName('Genders', subscriberId);
   }
 
   /**
-   * Organization Association Types (Individual-to-Organization)
+   * Risk Levels - Tenant List
    */
-  getAssociationTypes(): LookupItemDto[] {
-    return [
-      { value: 'UBO', label: 'Ultimate Beneficial Owner', description: 'Owns 25%+ of the organization' },
-      { value: 'SHAREHOLDER', label: 'Shareholder', description: 'Holds shares in the organization' },
-      { value: 'BENEFICIAL_OWNER', label: 'Beneficial Owner', description: 'Benefits from ownership' },
-      { value: 'DIRECTOR', label: 'Director', description: 'Board director' },
-      { value: 'CEO', label: 'CEO', description: 'Chief Executive Officer' },
-      { value: 'CFO', label: 'CFO', description: 'Chief Financial Officer' },
-      { value: 'COO', label: 'COO', description: 'Chief Operating Officer' },
-      { value: 'MANAGER', label: 'Manager', description: 'Management position' },
-      { value: 'BOARD_MEMBER', label: 'Board Member', description: 'Member of the board' },
-      { value: 'SECRETARY', label: 'Secretary', description: 'Company secretary' },
-      { value: 'TRUSTEE', label: 'Trustee', description: 'Trust trustee' },
-      { value: 'SETTLOR', label: 'Settlor', description: 'Trust settlor' },
-    ];
+  async getRiskLevels(subscriberId?: string): Promise<LookupItemDto[]> {
+    return this.getLookupByName('Risk Levels', subscriberId);
+  }
+
+  /**
+   * Screening Statuses - Tenant List
+   */
+  async getScreeningStatuses(subscriberId?: string): Promise<LookupItemDto[]> {
+    return this.getLookupByName('Screening Statuses', subscriberId);
+  }
+
+  /**
+   * Organization Types - Global List
+   */
+  async getOrganizationTypes(subscriberId?: string): Promise<LookupItemDto[]> {
+    return this.getLookupByName('Organization Types', subscriberId);
+  }
+
+  /**
+   * Document Types - Global List
+   */
+  async getDocumentTypes(subscriberId?: string): Promise<LookupItemDto[]> {
+    return this.getLookupByName('Document Types', subscriberId);
+  }
+
+  /**
+   * Individual Relationship Types - Global List
+   */
+  async getIndividualRelationshipTypes(subscriberId?: string): Promise<LookupItemDto[]> {
+    return this.getLookupByName('Individual Relationship Types', subscriberId);
+  }
+
+  /**
+   * Organization Relationship Types - Global List
+   */
+  async getOrganizationRelationshipTypes(subscriberId?: string): Promise<LookupItemDto[]> {
+    return this.getLookupByName('Organization Relationship Types', subscriberId);
+  }
+
+  /**
+   * Organization Association Types (Individual-to-Organization) - Global List
+   */
+  async getAssociationTypes(subscriberId?: string): Promise<LookupItemDto[]> {
+    return this.getLookupByName('Association Types', subscriberId);
   }
 }

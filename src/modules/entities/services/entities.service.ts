@@ -92,7 +92,7 @@ export class EntitiesService {
         order: { created_at: 'DESC' },
       }),
       this.entityCustomFieldRepository.find({
-        where: { entity_id: entityId },
+        where: { entity_id: entityId, is_active: true },
         order: { display_order: 'ASC', created_at: 'ASC' }
       }),
       this.entityRelationshipRepository.findActiveRelationships(entityId),
