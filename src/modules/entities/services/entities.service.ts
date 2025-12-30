@@ -27,6 +27,7 @@ import { UpdateOrganizationEntityDto } from '../dtos/update-organization-entity.
 import { BulkActionDto } from '../dtos/bulk-action.dto';
 import { ExportEntitiesDto } from '../dtos/export-entities.dto';
 import { AddCustomFieldsDto } from '../dtos/add-custom-fields.dto';
+import { UpdateCustomFieldDto } from '../dtos/update-custom-field.dto';
 
 import { EntityRelationshipRepository } from '../../entity-relationships/repositories/entity-relationship.repository';
 import { LogsService } from '../../logs/logs.service';
@@ -942,6 +943,141 @@ export class EntitiesService {
       );
 
       return { added: addedFields.length, fields: addedFields };
+    });
+  }
+
+  /**
+   * Get all custom fields for a specific entity
+   */
+  async getEntityCustomFields(subscriberId: string, entityId: string) {
+    // Verify entity belongs to subscriber
+    const entity = await this.entityRepository.findOne({ 
+      where: { id: entityId, subscriber_id: subscriberId, is_active: true } 
+    });
+    if (!entity) throw new NotFoundException('Entity not found');
+
+    const customFields = await this.entityCustomFieldRepository.find({
+      where: { entity_id: entityId, is_active: true },
+      order: { display_order: 'ASC', created_at: 'ASC' }
+    });
+
+    return {
+      entity_id: entityId,
+      entity_name: entity.name,
+      custom_fields: customFields,
+      total: customFields.length,
+    };
+  }
+
+  /**
+   * Update a specific custom field
+   */
+  async updateCustomField(
+    subscriberId: string, 
+    entityId: string, 
+    fieldId: string, 
+    userId: string, 
+    dto: UpdateCustomFieldDto
+  ) {
+    return this.dataSource.transaction(async manager => {
+      // Verify entity belongs to subscriber
+      const entityRepo = manager.getRepository((this.entityRepository as any).repository.target);
+      const entity = await entityRepo.findOne({ 
+        where: { id: entityId, subscriber_id: subscriberId, is_active: true } 
+      });
+      if (!entity) throw new NotFoundException('Entity not found');
+
+      // Find the custom field
+      const customFieldRepo = manager.getRepository((this.entityCustomFieldRepository as any).repository.target);
+      const field = await customFieldRepo.findOne({ 
+        where: { id: fieldId, entity_id: entityId, is_active: true } 
+      });
+      if (!field) throw new NotFoundException('Custom field not found');
+
+      // Capture old values for history
+      const oldValues = {
+        field_value: field.field_value,
+        field_value_json: field.field_value_json,
+        field_group: field.field_group,
+        field_type: field.field_type,
+        field_label: field.field_label,
+        is_required: field.is_required,
+        is_searchable: field.is_searchable,
+        is_visible: field.is_visible,
+        is_editable: field.is_editable,
+        display_order: field.display_order,
+      };
+
+      // Update fields
+      if (dto.field_value !== undefined) field.field_value = dto.field_value;
+      if (dto.field_value_json !== undefined) field.field_value_json = dto.field_value_json;
+      if (dto.field_group !== undefined) field.field_group = dto.field_group;
+      if (dto.field_type !== undefined) field.field_type = dto.field_type;
+      if (dto.field_label !== undefined) field.field_label = dto.field_label;
+      if (dto.is_required !== undefined) field.is_required = dto.is_required;
+      if (dto.is_searchable !== undefined) field.is_searchable = dto.is_searchable;
+      if (dto.is_visible !== undefined) field.is_visible = dto.is_visible;
+      if (dto.is_editable !== undefined) field.is_editable = dto.is_editable;
+      if (dto.display_order !== undefined) field.display_order = dto.display_order;
+      field.updated_by = userId;
+      field.updated_at = new Date();
+
+      const savedField = await customFieldRepo.save(field);
+
+      // Log history
+      await manager.getRepository((this.entityHistoryRepository as any).repository.target).save(
+        this.entityHistoryRepository.create({
+          entity_id: entityId,
+          changed_by: userId,
+          change_type: 'updated',
+          change_description: `Custom field "${field.field_name}" updated`,
+          old_values: oldValues,
+          new_values: dto,
+        })
+      );
+
+      return savedField;
+    });
+  }
+
+  /**
+   * Soft delete a custom field
+   */
+  async deleteCustomField(subscriberId: string, entityId: string, fieldId: string, userId: string) {
+    return this.dataSource.transaction(async manager => {
+      // Verify entity belongs to subscriber
+      const entityRepo = manager.getRepository((this.entityRepository as any).repository.target);
+      const entity = await entityRepo.findOne({ 
+        where: { id: entityId, subscriber_id: subscriberId, is_active: true } 
+      });
+      if (!entity) throw new NotFoundException('Entity not found');
+
+      // Find the custom field
+      const customFieldRepo = manager.getRepository((this.entityCustomFieldRepository as any).repository.target);
+      const field = await customFieldRepo.findOne({ 
+        where: { id: fieldId, entity_id: entityId, is_active: true } 
+      });
+      if (!field) throw new NotFoundException('Custom field not found');
+
+      // Soft delete
+      field.is_active = false;
+      field.deleted_at = new Date();
+      field.updated_by = userId;
+
+      await customFieldRepo.save(field);
+
+      // Log history
+      await manager.getRepository((this.entityHistoryRepository as any).repository.target).save(
+        this.entityHistoryRepository.create({
+          entity_id: entityId,
+          changed_by: userId,
+          change_type: 'deleted',
+          change_description: `Custom field "${field.field_name}" deleted`,
+          old_values: { field_name: field.field_name, field_value: field.field_value },
+        })
+      );
+
+      return { deleted: true, field_id: fieldId, field_name: field.field_name };
     });
   }
 }

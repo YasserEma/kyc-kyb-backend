@@ -25,7 +25,7 @@ export async function seedLogs(dataSource: DataSource): Promise<void> {
     }
 
     const logTypes = ['LOGIN', 'LOGOUT', 'ENTITY_CREATE', 'ENTITY_UPDATE', 'DOCUMENT_UPLOAD', 'SCREENING_RUN', 'RISK_ASSESSMENT', 'CONFIG_CHANGE', 'USER_CREATE', 'SYSTEM_ERROR'];
-    const logLevels = ['INFO', 'WARNING', 'ERROR', 'DEBUG'];
+    const logLevels = ['info', 'warning', 'error', 'critical'];
     const ipAddresses = ['192.168.1.100', '10.0.0.50', '172.16.0.25', '203.0.113.45', '198.51.100.78'];
     const userAgents = [
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -97,28 +97,24 @@ export async function seedLogs(dataSource: DataSource): Promise<void> {
         case 'SYSTEM_ERROR':
           message = `System error occurred`;
           details = { error_code: `ERR_${Math.floor(Math.random() * 9999).toString().padStart(4, '0')}`, component: ['DATABASE', 'API', 'SCREENING_SERVICE'][Math.floor(Math.random() * 3)] };
-          logLevel = 'ERROR';
+          logLevel = 'error';
           break;
       }
 
       logs.push({
-        id: `gen_random_uuid()`,
         subscriber_id: randomUser.subscriber_id,
         user_id: randomUser.id,
-        timestamp: logTimestamp.toISOString(),
         action_type: logType,
-        entity_type: (details as any).entity_type || null,
         entity_id: (details as any).entity_id || null,
-        action_description: message,
+        description: message,
         ip_address: ipAddresses[Math.floor(Math.random() * ipAddresses.length)],
         user_agent: userAgents[Math.floor(Math.random() * userAgents.length)],
         request_data: JSON.stringify(details),
         response_data: null,
-        status: logLevel === 'ERROR' ? 'FAILED' : 'SUCCESS',
-        error_message: logLevel === 'ERROR' ? message : null,
+        status: logLevel === 'error' ? 'failure' : 'success',
+        error_message: logLevel === 'error' ? message : null,
         session_id: (details as any).session_id || null,
-        affected_fields: (details as any).fields_updated ? JSON.stringify([(details as any).fields_updated]) : null,
-        severity: logLevel
+        severity: logLevel as 'info' | 'warning' | 'error' | 'critical'
       });
     }
 
@@ -127,11 +123,11 @@ export async function seedLogs(dataSource: DataSource): Promise<void> {
     for (let i = 0; i < logs.length; i += batchSize) {
       const batch = logs.slice(i, i + batchSize);
       const values = batch.map(log => 
-        `(gen_random_uuid(), '${log.subscriber_id}', ${log.user_id ? `'${log.user_id}'` : 'NULL'}, '${log.timestamp}', '${log.action_type}', ${log.entity_type ? `'${log.entity_type}'` : 'NULL'}, ${log.entity_id ? `'${log.entity_id}'` : 'NULL'}, '${log.action_description.replace(/'/g, "''")}', '${log.ip_address}', '${log.user_agent.replace(/'/g, "''")}', '${log.request_data}', ${log.response_data ? `'${log.response_data}'` : 'NULL'}, '${log.status}', ${log.error_message ? `'${log.error_message.replace(/'/g, "''")}'` : 'NULL'}, ${log.session_id ? `'${log.session_id}'` : 'NULL'}, ${log.affected_fields ? `'${log.affected_fields}'` : 'NULL'}, '${log.severity}')`
+        `(gen_random_uuid(), '${log.subscriber_id}', ${log.user_id ? `'${log.user_id}'` : 'NULL'}, ${log.entity_id ? `'${log.entity_id}'` : 'NULL'}, '${log.action_type}', '${log.description.replace(/'/g, "''")}', '${log.severity}', '${log.status}', '${log.request_data}', ${log.response_data ? `'${log.response_data}'` : 'NULL'}, '${log.ip_address}', '${log.user_agent.replace(/'/g, "''")}', ${log.session_id ? `'${log.session_id}'` : 'NULL'}, ${log.error_message ? `'${log.error_message.replace(/'/g, "''")}'` : 'NULL'})`
       ).join(', ');
 
       await queryRunner.query(`
-        INSERT INTO logs (id, subscriber_id, user_id, timestamp, action_type, entity_type, entity_id, action_description, ip_address, user_agent, request_data, response_data, status, error_message, session_id, affected_fields, severity)
+        INSERT INTO logs (id, subscriber_id, user_id, entity_id, action_type, description, severity, status, request_data, response_data, ip_address, user_agent, session_id, error_message)
         VALUES ${values}
       `);
     }

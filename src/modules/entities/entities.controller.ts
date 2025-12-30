@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req, UseGuards, Res, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UseGuards, Res, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags, ApiConsumes } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -17,6 +17,7 @@ import { BulkActionDto } from './dtos/bulk-action.dto';
 import { ExportEntitiesDto } from './dtos/export-entities.dto';
 import { AddDocumentDto } from './dtos/add-document.dto';
 import { AddCustomFieldsDto } from './dtos/add-custom-fields.dto';
+import { UpdateCustomFieldDto } from './dtos/update-custom-field.dto';
 
 @ApiTags('Entities')
 @ApiBearerAuth()
@@ -153,6 +154,53 @@ export class EntitiesController {
   ) {
     const payload = req.user as any;
     return this.entitiesService.addCustomFields(payload.subscriberId, entityId, payload.sub, dto);
+  }
+
+  @Get(':entity_id/custom-fields')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'manager', 'analyst', 'viewer')
+  @ApiOperation({ summary: 'Get all custom fields for an entity' })
+  @ApiParam({ name: 'entity_id', required: true })
+  @ApiResponse({ status: 200, description: 'Custom fields returned successfully' })
+  async getCustomFields(
+    @Req() req: Request,
+    @Param('entity_id') entityId: string
+  ) {
+    const payload = req.user as any;
+    return this.entitiesService.getEntityCustomFields(payload.subscriberId, entityId);
+  }
+
+  @Put(':entity_id/custom-fields/:field_id')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'manager')
+  @ApiOperation({ summary: 'Update a specific custom field' })
+  @ApiParam({ name: 'entity_id', required: true })
+  @ApiParam({ name: 'field_id', required: true })
+  @ApiResponse({ status: 200, description: 'Custom field updated successfully' })
+  async updateCustomField(
+    @Req() req: Request,
+    @Param('entity_id') entityId: string,
+    @Param('field_id') fieldId: string,
+    @Body() dto: UpdateCustomFieldDto
+  ) {
+    const payload = req.user as any;
+    return this.entitiesService.updateCustomField(payload.subscriberId, entityId, fieldId, payload.sub, dto);
+  }
+
+  @Delete(':entity_id/custom-fields/:field_id')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'manager')
+  @ApiOperation({ summary: 'Delete a custom field' })
+  @ApiParam({ name: 'entity_id', required: true })
+  @ApiParam({ name: 'field_id', required: true })
+  @ApiResponse({ status: 200, description: 'Custom field deleted successfully' })
+  async deleteCustomField(
+    @Req() req: Request,
+    @Param('entity_id') entityId: string,
+    @Param('field_id') fieldId: string
+  ) {
+    const payload = req.user as any;
+    return this.entitiesService.deleteCustomField(payload.subscriberId, entityId, fieldId, payload.sub);
   }
 
   @Put(':entity_id')
